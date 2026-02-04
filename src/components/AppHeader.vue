@@ -35,21 +35,45 @@
           </svg>
           <span class="btn-text">设置</span>
         </button>
-        <button
-          type="button"
-          class="header-btn user-btn"
-          aria-label="用户"
-          @click="onUser"
-        >
-          <span class="user-avatar">Y</span>
-        </button>
+        <div class="user-trigger-wrap" ref="userTriggerRef">
+          <button
+            v-if="!isLoggedIn"
+            type="button"
+            class="header-btn login-link-btn"
+            aria-label="注册或登录"
+            @click="showAuthDialog = true"
+          >
+            注册/登录
+          </button>
+          <template v-else>
+            <button
+              type="button"
+              class="header-btn user-btn"
+              aria-label="用户菜单"
+              @click="onUserClick"
+            >
+              <span class="user-avatar">{{ userAvatarLetter }}</span>
+            </button>
+            <UserMenu
+              v-if="showUserMenu"
+              @edit="openEditDialog"
+              @logout="handleLogout"
+            />
+          </template>
+        </div>
       </div>
     </div>
+    <AuthDialog v-if="showAuthDialog" @close="showAuthDialog = false" @success="showAuthDialog = false" />
+    <UserEditDialog v-if="showEditDialog" :user="user" @close="showEditDialog = false" @success="showEditDialog = false" />
   </header>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useAuth } from '../composables/useAuth.js'
+import AuthDialog from './AuthDialog.vue'
+import UserMenu from './UserMenu.vue'
+import UserEditDialog from './UserEditDialog.vue'
 
 const selectedProduct = ref('moling')
 const productOptions = ref([
@@ -57,13 +81,60 @@ const productOptions = ref([
   { value: 'notebook', label: '笔记本' },
 ])
 
+const { user, isLoggedIn, logout, fetchUser, setToken } = useAuth()
+
+const showAuthDialog = ref(false)
+const showUserMenu = ref(false)
+const showEditDialog = ref(false)
+const userTriggerRef = ref(null)
+
+const userAvatarLetter = computed(() => {
+  if (!user.value) return '?'
+  const name = user.value.username ?? user.value.name ?? user.value.email ?? ''
+  return name ? String(name).charAt(0).toUpperCase() : '?'
+})
+
 function onSettings() {
   console.log('设置')
 }
 
-function onUser() {
-  console.log('用户')
+function onUserClick() {
+  if (isLoggedIn.value) {
+    showUserMenu.value = !showUserMenu.value
+  } else {
+    showAuthDialog.value = true
+  }
 }
+
+function openEditDialog() {
+  showUserMenu.value = false
+  showEditDialog.value = true
+}
+
+async function handleLogout() {
+  showUserMenu.value = false
+  try {
+    await logout()
+  } catch {
+    setToken('')
+  }
+}
+
+function handleClickOutside(e) {
+  if (!userTriggerRef.value) return
+  if (!userTriggerRef.value.contains(e.target)) {
+    showUserMenu.value = false
+  }
+}
+
+onMounted(() => {
+  fetchUser()
+  document.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 </script>
 
 <style scoped>
@@ -162,6 +233,12 @@ function onUser() {
 .icon-btn .btn-icon {
   width: 20px;
   height: 20px;
+}
+.user-trigger-wrap {
+  position: relative;
+}
+.login-link-btn {
+  font-weight: 500;
 }
 .user-btn {
   padding: 0;

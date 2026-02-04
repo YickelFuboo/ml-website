@@ -1,4 +1,6 @@
-const BASE_URL = 'http://127.0.0.1:8001'
+import { API_USER_SERVICE_URL } from '../config/env.js'
+
+const BASE_URL = API_USER_SERVICE_URL
 
 function getToken() {
   return localStorage.getItem('moling_token') || ''

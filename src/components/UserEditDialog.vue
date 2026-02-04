@@ -25,13 +25,19 @@
         </div>
         <div class="field">
           <label for="edit-password">新密码（不修改请留空）</label>
-          <input
-            id="edit-password"
-            v-model="form.password"
-            type="password"
-            autocomplete="new-password"
-            placeholder="留空表示不修改"
-          />
+          <div class="password-row">
+            <input
+              id="edit-password"
+              v-model="form.password"
+              :type="showPassword ? 'text' : 'password'"
+              autocomplete="new-password"
+              placeholder="留空表示不修改"
+            />
+            <button type="button" class="pwd-toggle" :aria-label="showPassword ? '隐藏密码' : '显示密码'" @click="showPassword = !showPassword">
+              <svg v-if="!showPassword" class="pwd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg v-else class="pwd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
         </div>
         <p v-if="errorMsg" class="error-msg">{{ errorMsg }}</p>
         <button type="submit" class="submit-btn" :disabled="loading">
@@ -54,6 +60,7 @@ const emit = defineEmits(['close', 'success'])
 
 const { user, updateUser } = useAuth()
 
+const showPassword = ref(false)
 const form = ref({
   username: '',
   description: '',
@@ -172,6 +179,46 @@ async function handleSubmit() {
   outline: none;
   border-color: #1a73e8;
   box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+}
+.password-row {
+  display: flex;
+  align-items: center;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.password-row:focus-within {
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+}
+.password-row input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  border-radius: 0;
+}
+.password-row input:focus {
+  box-shadow: none;
+}
+.pwd-toggle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: #5f6368;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.pwd-toggle:hover {
+  color: #202124;
+  background: rgba(0, 0, 0, 0.04);
+}
+.pwd-icon {
+  display: block;
 }
 .error-msg {
   margin: -8px 0 12px;

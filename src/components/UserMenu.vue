@@ -57,12 +57,6 @@ function onLogout() {
 }
 </script>
 
-<script>
-export default {
-  inheritAttrs: false,
-}
-</script>
-
 <style scoped>
 .user-menu-wrap {
   position: absolute;
