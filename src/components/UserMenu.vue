@@ -2,10 +2,16 @@
   <div ref="menuRef" class="user-menu-wrap">
     <div class="user-menu-card">
       <div class="user-info-row">
-        <span class="menu-avatar">{{ avatarLetter }}</span>
+        <img
+          v-if="avatarUrlValue"
+          :src="avatarUrlValue"
+          alt="头像"
+          class="menu-avatar-img"
+        />
+        <span v-else class="menu-avatar">{{ avatarLetter }}</span>
         <div class="menu-name-wrap">
-          <span class="menu-username">{{ displayName }}</span>
-          <span v-if="user && user.email" class="menu-email">{{ user.email }}</span>
+          <span class="menu-username">{{ userDisplayName }}</span>
+          <span v-if="user?.email" class="menu-email">{{ user.email }}</span>
         </div>
       </div>
       <div class="menu-divider" />
@@ -15,6 +21,13 @@
           <path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
         </svg>
         修改资料
+      </button>
+      <button type="button" class="menu-item" @click="onChangePassword">
+        <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0110 0v4"/>
+        </svg>
+        修改密码
       </button>
       <button type="button" class="menu-item logout" @click="onLogout">
         <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
@@ -32,24 +45,30 @@
 import { computed } from 'vue'
 import { useAuth } from '../composables/useAuth.js'
 
-const emit = defineEmits(['edit', 'logout'])
+const emit = defineEmits(['edit', 'changePassword', 'logout'])
 
-const { user } = useAuth()
+const { user, userDisplayName, avatarUrl, loadAvatar, avatarObjectUrls } = useAuth()
 
-const displayName = computed(() => {
+const avatarUrlValue = computed(() => {
   const u = user.value
-  if (!u) return '用户'
-  return u.username ?? u.name ?? u.email ?? '用户'
+  const uid = u?.id ?? u?.user_id
+  if (!uid) return ''
+  loadAvatar(uid)
+  return avatarObjectUrls.value[uid] ?? avatarUrl(uid) ?? ''
 })
 
 const avatarLetter = computed(() => {
-  const name = displayName.value
+  const name = userDisplayName.value
   if (!name) return '?'
   return name.charAt(0).toUpperCase()
 })
 
 function onEdit() {
   emit('edit')
+}
+
+function onChangePassword() {
+  emit('changePassword')
 }
 
 function onLogout() {
@@ -78,9 +97,14 @@ function onLogout() {
   gap: 12px;
   padding: 0 16px 12px;
 }
-.menu-avatar {
+.menu-avatar,
+.menu-avatar-img {
   width: 40px;
   height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.menu-avatar {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -88,8 +112,9 @@ function onLogout() {
   font-weight: 500;
   color: #fff;
   background: #00bcd4;
-  border-radius: 50%;
-  flex-shrink: 0;
+}
+.menu-avatar-img {
+  object-fit: cover;
 }
 .menu-name-wrap {
   min-width: 0;

@@ -23,23 +23,29 @@
             placeholder="选填"
           />
         </div>
-        <div class="field">
-          <label for="edit-password">新密码（不修改请留空）</label>
-          <div class="password-row">
-            <input
-              id="edit-password"
-              v-model="form.password"
-              :type="showPassword ? 'text' : 'password'"
-              autocomplete="new-password"
-              placeholder="留空表示不修改"
-            />
-            <button type="button" class="pwd-toggle" :aria-label="showPassword ? '隐藏密码' : '显示密码'" @click="showPassword = !showPassword">
-              <svg v-if="!showPassword" class="pwd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              <svg v-else class="pwd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-            </button>
+        <div class="field avatar-field">
+          <label>头像</label>
+          <div class="avatar-row">
+            <div class="avatar-preview">
+              <img v-if="avatarPreview" :src="avatarPreview" alt="头像" class="avatar-img" />
+              <span v-else class="avatar-letter">{{ avatarLetter }}</span>
+            </div>
+            <div class="avatar-actions">
+              <input
+                ref="avatarInputRef"
+                type="file"
+                accept="image/*"
+                class="avatar-input"
+                @change="onAvatarSelect"
+              />
+              <button type="button" class="avatar-btn" @click="triggerAvatarInput">选择图片</button>
+              <span v-if="avatarUploading" class="avatar-status">上传中…</span>
+              <span v-else-if="avatarError" class="avatar-error">{{ avatarError }}</span>
+            </div>
           </div>
         </div>
         <p v-if="errorMsg" class="error-msg">{{ errorMsg }}</p>
+        <p v-if="successMsg" class="success-msg">{{ successMsg }}</p>
         <button type="submit" class="submit-btn" :disabled="loading">
           {{ loading ? '保存中…' : '保存' }}
         </button>
@@ -49,7 +55,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useAuth } from '../composables/useAuth.js'
 
 const props = defineProps({
@@ -58,42 +64,128 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'success'])
 
-const { user, updateUser } = useAuth()
+const { user, updateUser, uploadAvatarFile, avatarUrl, loadAvatar, avatarObjectUrls, revokeAvatar } = useAuth()
 
-const showPassword = ref(false)
 const form = ref({
   username: '',
   description: '',
-  password: '',
 })
 const loading = ref(false)
 const errorMsg = ref('')
+const successMsg = ref('')
+const avatarInputRef = ref(null)
+const avatarUploading = ref(false)
+const avatarError = ref('')
+const pendingAvatarFile = ref(null)
+const pendingAvatarPreviewUrl = ref('')
+const initialDescription = ref('')
+
+const avatarVersion = ref(0)
+const avatarPreview = computed(() => {
+  if (pendingAvatarPreviewUrl.value) return pendingAvatarPreviewUrl.value
+  const u = props.user || user.value
+  const uid = u?.id ?? u?.user_id
+  if (!uid) return ''
+  loadAvatar(uid)
+  const url = avatarObjectUrls.value[uid] ?? avatarUrl(uid)
+  if (!url) return ''
+  return url + (avatarVersion.value ? `?t=${avatarVersion.value}` : '')
+})
+
+const avatarLetter = computed(() => {
+  const u = props.user || user.value
+  if (!u) return '?'
+  const name = u.user_name ?? u.userName ?? u.username ?? ''
+  const s = typeof name === 'string' ? name.trim() : ''
+  return s ? String(s).charAt(0).toUpperCase() : '?'
+})
 
 watch(
   () => props.user || user.value,
   (u) => {
     if (u) {
+      const raw = u.description ?? u.bio ?? u.user_full_name ?? u.userFullName ?? ''
+      const desc = typeof raw === 'string' ? raw.trim() : ''
       form.value = {
-        username: u.username ?? u.name ?? '',
-        description: u.description ?? u.bio ?? '',
-        password: '',
+        username: u.user_name ?? u.userName ?? u.username ?? '',
+        description: desc,
       }
+      initialDescription.value = desc
     }
     errorMsg.value = ''
+    avatarError.value = ''
+    successMsg.value = ''
   },
   { immediate: true }
 )
 
+onBeforeUnmount(() => {
+  if (pendingAvatarPreviewUrl.value) {
+    URL.revokeObjectURL(pendingAvatarPreviewUrl.value)
+    pendingAvatarPreviewUrl.value = ''
+  }
+})
+
+function triggerAvatarInput() {
+  avatarInputRef.value?.click()
+}
+
+function onAvatarSelect(e) {
+  const file = e.target?.files?.[0]
+  if (!file || !file.type.startsWith('image/')) {
+    avatarError.value = '请选择图片文件'
+    return
+  }
+  avatarError.value = ''
+  if (pendingAvatarPreviewUrl.value) URL.revokeObjectURL(pendingAvatarPreviewUrl.value)
+  pendingAvatarFile.value = file
+  pendingAvatarPreviewUrl.value = URL.createObjectURL(file)
+  if (avatarInputRef.value) avatarInputRef.value.value = ''
+}
+
 async function handleSubmit() {
   errorMsg.value = ''
+  avatarError.value = ''
+  successMsg.value = ''
   loading.value = true
+  let didSomething = false
   try {
-    const body = {}
-    if (form.value.description !== undefined) body.description = form.value.description
-    if (form.value.password && form.value.password.trim()) body.password = form.value.password.trim()
-    await updateUser(body)
-    emit('success')
-    emit('close')
+    if (pendingAvatarFile.value) {
+      avatarUploading.value = true
+      try {
+        await uploadAvatarFile(pendingAvatarFile.value)
+        const uid = (props.user || user.value)?.id ?? (props.user || user.value)?.user_id
+        if (uid) revokeAvatar(uid)
+        avatarVersion.value++
+        emit('success')
+        didSomething = true
+      } catch (err) {
+        avatarError.value = err?.data?.detail || err?.message || '上传失败'
+        loading.value = false
+        return
+      } finally {
+        avatarUploading.value = false
+        if (pendingAvatarPreviewUrl.value) {
+          URL.revokeObjectURL(pendingAvatarPreviewUrl.value)
+          pendingAvatarPreviewUrl.value = ''
+        }
+        pendingAvatarFile.value = null
+      }
+    }
+    const rawDesc = form.value.description !== undefined ? form.value.description : ''
+    const currentDesc = typeof rawDesc === 'string' ? rawDesc.trim() : ''
+    const descriptionChanged = currentDesc !== initialDescription.value
+    if (descriptionChanged) {
+      const body = { description: currentDesc }
+      await updateUser(body)
+      initialDescription.value = currentDesc
+      didSomething = true
+    }
+    successMsg.value = '修改成功'
+    setTimeout(() => {
+      if (didSomething) emit('success')
+      emit('close')
+    }, 1500)
   } catch (e) {
     errorMsg.value = e?.data?.detail || e?.message || '保存失败'
   } finally {
@@ -148,88 +240,90 @@ async function handleSubmit() {
 .edit-form .field {
   margin-bottom: 20px;
 }
-.edit-form label {
-  display: block;
-  margin-bottom: 6px;
+.avatar-field .avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.avatar-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #e8eaed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.avatar-letter {
+  font-size: 24px;
+  color: #5f6368;
+}
+.avatar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.avatar-input {
+  display: none;
+}
+.avatar-btn {
+  padding: 6px 12px;
   font-size: 14px;
-  font-weight: 500;
-  color: #202124;
+  color: #1a73e8;
+  background: none;
+  border: 1px solid #1a73e8;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.avatar-btn:hover {
+  background: #e8f0fe;
+}
+.avatar-status,
+.avatar-error {
+  font-size: 12px;
+}
+.avatar-error {
+  color: #d93025;
 }
 .edit-form input,
 .edit-form textarea {
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 12px;
   font-size: 14px;
-  color: #202124;
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  border-radius: 8px;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  box-sizing: border-box;
 }
 .edit-form input.disabled {
   background: #f1f3f4;
   color: #5f6368;
-  cursor: not-allowed;
 }
-.edit-form textarea {
-  resize: vertical;
-  min-height: 72px;
-}
-.edit-form input:focus,
-.edit-form textarea:focus {
-  outline: none;
-  border-color: #1a73e8;
-  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
-}
-.password-row {
-  display: flex;
-  align-items: center;
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  border-radius: 8px;
-  overflow: hidden;
-}
-.password-row:focus-within {
-  border-color: #1a73e8;
-  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
-}
-.password-row input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  border-radius: 0;
-}
-.password-row input:focus {
-  box-shadow: none;
-}
-.pwd-toggle {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  color: #5f6368;
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-.pwd-toggle:hover {
-  color: #202124;
-  background: rgba(0, 0, 0, 0.04);
-}
-.pwd-icon {
+.edit-form label {
   display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: #202124;
 }
 .error-msg {
-  margin: -8px 0 12px;
-  font-size: 13px;
+  margin-bottom: 12px;
+  font-size: 14px;
   color: #d93025;
+}
+.success-msg {
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: #1e8e3e;
 }
 .submit-btn {
   width: 100%;
-  height: 44px;
-  margin-top: 8px;
-  font-size: 15px;
+  padding: 10px 16px;
+  font-size: 14px;
   font-weight: 500;
   color: #fff;
   background: #1a73e8;
@@ -241,7 +335,7 @@ async function handleSubmit() {
   background: #1765cc;
 }
 .submit-btn:disabled {
-  opacity: 0.7;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 </style>

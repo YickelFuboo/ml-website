@@ -52,11 +52,18 @@
               aria-label="用户菜单"
               @click="onUserClick"
             >
-              <span class="user-avatar">{{ userAvatarLetter }}</span>
+              <img
+                v-if="userAvatarUrl"
+                :src="userAvatarUrl"
+                alt="头像"
+                class="user-avatar-img"
+              />
+              <span v-else class="user-avatar">{{ userAvatarLetter }}</span>
             </button>
             <UserMenu
               v-if="showUserMenu"
               @edit="openEditDialog"
+              @changePassword="openChangePasswordDialog"
               @logout="handleLogout"
             />
           </template>
@@ -65,6 +72,7 @@
     </div>
     <AuthDialog v-if="showAuthDialog" @close="showAuthDialog = false" @success="showAuthDialog = false" />
     <UserEditDialog v-if="showEditDialog" :user="user" @close="showEditDialog = false" @success="showEditDialog = false" />
+    <ChangePasswordDialog v-if="showChangePasswordDialog" @close="showChangePasswordDialog = false" @success="showChangePasswordDialog = false" />
   </header>
 </template>
 
@@ -74,6 +82,7 @@ import { useAuth } from '../composables/useAuth.js'
 import AuthDialog from './AuthDialog.vue'
 import UserMenu from './UserMenu.vue'
 import UserEditDialog from './UserEditDialog.vue'
+import ChangePasswordDialog from './ChangePasswordDialog.vue'
 
 const selectedProduct = ref('moling')
 const productOptions = ref([
@@ -81,17 +90,27 @@ const productOptions = ref([
   { value: 'notebook', label: '笔记本' },
 ])
 
-const { user, isLoggedIn, logout, fetchUser, setToken } = useAuth()
+const { user, userDisplayName, isLoggedIn, logout, fetchUser, setToken, avatarUrl, loadAvatar, avatarObjectUrls } = useAuth()
 
 const showAuthDialog = ref(false)
 const showUserMenu = ref(false)
 const showEditDialog = ref(false)
+const showChangePasswordDialog = ref(false)
 const userTriggerRef = ref(null)
 
+const userAvatarUrl = computed(() => {
+  const u = user.value
+  const uid = u?.id ?? u?.user_id
+  if (!uid) return ''
+  loadAvatar(uid)
+  return avatarObjectUrls.value[uid] ?? avatarUrl(uid) ?? ''
+})
+
 const userAvatarLetter = computed(() => {
-  if (!user.value) return '?'
-  const name = user.value.username ?? user.value.name ?? user.value.email ?? ''
-  return name ? String(name).charAt(0).toUpperCase() : '?'
+  const name = userDisplayName.value
+  return (typeof name === 'string' && name.trim())
+    ? String(name).trim().charAt(0).toUpperCase()
+    : '?'
 })
 
 function onSettings() {
@@ -109,6 +128,11 @@ function onUserClick() {
 function openEditDialog() {
   showUserMenu.value = false
   showEditDialog.value = true
+}
+
+function openChangePasswordDialog() {
+  showUserMenu.value = false
+  showChangePasswordDialog.value = true
 }
 
 async function handleLogout() {
@@ -245,9 +269,14 @@ onUnmounted(() => {
   width: 36px;
   border-radius: 50%;
 }
-.user-avatar {
+.user-avatar,
+.user-avatar-img {
   width: 32px;
   height: 32px;
+  border-radius: 50%;
+  display: block;
+}
+.user-avatar {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -255,6 +284,8 @@ onUnmounted(() => {
   font-weight: 500;
   color: #fff;
   background: #00bcd4;
-  border-radius: 50%;
+}
+.user-avatar-img {
+  object-fit: cover;
 }
 </style>

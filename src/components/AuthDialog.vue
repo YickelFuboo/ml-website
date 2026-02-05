@@ -16,17 +16,18 @@
         <template v-if="method === 'password'">
           <form v-if="passwordSubMode === 'login'" class="auth-form" @submit.prevent="handleLoginPassword">
             <p class="method-hint">使用已注册的用户名和密码登录</p>
+            <p v-if="authSuccessMessage" class="success-msg">{{ authSuccessMessage }}</p>
             <div class="field">
               <label for="login-username">用户名或邮箱</label>
-              <input id="login-username" v-model="loginForm.username" type="text" autocomplete="username" placeholder="请输入用户名或邮箱" required />
+              <input id="login-username" v-model="loginForm.username" type="text" autocomplete="username" placeholder="请输入用户名或邮箱" />
             </div>
             <div class="field">
               <label for="login-password">密码</label>
               <div class="password-row">
-                <input id="login-password" v-model="loginForm.password" :type="showLoginPwd ? 'text' : 'password'" autocomplete="current-password" placeholder="请输入密码" required />
+                <input id="login-password" v-model="loginForm.password" :type="showLoginPwd ? 'text' : 'password'" autocomplete="current-password" placeholder="请输入密码" />
                 <button type="button" class="pwd-toggle" :aria-label="showLoginPwd ? '隐藏密码' : '显示密码'" @click="showLoginPwd = !showLoginPwd">
-                  <svg v-if="!showLoginPwd" class="pwd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  <svg v-else class="pwd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  <svg v-if="!showLoginPwd" class="pwd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  <svg v-else class="pwd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
               </div>
             </div>
@@ -40,7 +41,7 @@
             <p class="method-hint">注册后使用用户名和密码登录</p>
             <div class="field">
               <label for="reg-username">用户名</label>
-              <input id="reg-username" v-model="registerForm.username" type="text" autocomplete="username" placeholder="请输入用户名" required />
+              <input id="reg-username" v-model="registerForm.username" type="text" autocomplete="username" placeholder="请输入用户名" />
             </div>
             <div class="field">
               <label for="reg-email">邮箱</label>
@@ -49,10 +50,20 @@
             <div class="field">
               <label for="reg-password">密码</label>
               <div class="password-row">
-                <input id="reg-password" v-model="registerForm.password" :type="showRegPwd ? 'text' : 'password'" autocomplete="new-password" placeholder="请输入密码" required />
+                <input id="reg-password" v-model="registerForm.password" :type="showRegPwd ? 'text' : 'password'" autocomplete="new-password" placeholder="请输入密码" />
                 <button type="button" class="pwd-toggle" :aria-label="showRegPwd ? '隐藏密码' : '显示密码'" @click="showRegPwd = !showRegPwd">
-                  <svg v-if="!showRegPwd" class="pwd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  <svg v-else class="pwd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  <svg v-if="!showRegPwd" class="pwd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  <svg v-else class="pwd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="reg-password-confirm">再次输入密码</label>
+              <div class="password-row">
+                <input id="reg-password-confirm" v-model="registerForm.password_confirm" :type="showRegPwd ? 'text' : 'password'" autocomplete="new-password" placeholder="请再次输入密码" />
+                <button type="button" class="pwd-toggle" :aria-label="showRegPwd ? '隐藏密码' : '显示密码'" @click="showRegPwd = !showRegPwd">
+                  <svg v-if="!showRegPwd" class="pwd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  <svg v-else class="pwd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
               </div>
             </div>
@@ -68,12 +79,12 @@
             <p class="method-hint">未注册将自动创建账号并登录</p>
             <div class="field">
               <label for="login-email">邮箱</label>
-              <input id="login-email" v-model="codeEmailForm.email" type="email" autocomplete="email" placeholder="请输入邮箱" required />
+              <input id="login-email" v-model="codeEmailForm.email" type="email" autocomplete="email" placeholder="请输入邮箱" />
             </div>
             <div class="field field-code">
               <label for="login-email-code">验证码</label>
               <div class="code-row">
-                <input id="login-email-code" v-model="codeEmailForm.code" type="text" inputmode="numeric" maxlength="6" placeholder="请输入验证码" required />
+                <input id="login-email-code" v-model="codeEmailForm.code" type="text" inputmode="numeric" maxlength="6" placeholder="请输入验证码" />
                 <button type="button" class="code-btn" :disabled="emailCodeCountdown > 0 || codeSending" @click="sendEmailCode()">
                   {{ emailCodeCountdown > 0 ? `${emailCodeCountdown}s 后重发` : '获取验证码' }}
                 </button>
@@ -90,13 +101,13 @@
               <label for="login-phone">手机号（国内）</label>
               <div class="phone-row">
                 <span class="phone-prefix">+86</span>
-                <input id="login-phone" v-model="codePhoneForm.phone" type="tel" inputmode="numeric" maxlength="11" placeholder="请输入手机号" required />
+                <input id="login-phone" v-model="codePhoneForm.phone" type="tel" inputmode="numeric" maxlength="11" placeholder="请输入手机号" />
               </div>
             </div>
             <div class="field field-code">
               <label for="login-phone-code">验证码</label>
               <div class="code-row">
-                <input id="login-phone-code" v-model="codePhoneForm.code" type="text" inputmode="numeric" maxlength="6" placeholder="请输入验证码" required />
+                <input id="login-phone-code" v-model="codePhoneForm.code" type="text" inputmode="numeric" maxlength="6" placeholder="请输入验证码" />
                 <button type="button" class="code-btn" :disabled="smsCodeCountdown > 0 || codeSending" @click="sendSmsCode()">
                   {{ smsCodeCountdown > 0 ? `${smsCodeCountdown}s 后重发` : '获取验证码' }}
                 </button>
@@ -152,6 +163,7 @@ const passwordSubMode = ref('login')
 const loading = ref(false)
 const codeSending = ref(false)
 const authError = ref('')
+const authSuccessMessage = ref('')
 const emailCodeCountdown = ref(0)
 const smsCodeCountdown = ref(0)
 const oauthProviders = ref([])
@@ -159,7 +171,7 @@ const oauthProviders = ref([])
 const showLoginPwd = ref(false)
 const showRegPwd = ref(false)
 const loginForm = ref({ username: '', password: '' })
-const registerForm = ref({ username: '', email: '', password: '' })
+const registerForm = ref({ username: '', email: '', password: '', password_confirm: '' })
 const codeEmailForm = ref({ email: '', code: '', password: '' })
 const codePhoneForm = ref({ phone: '', code: '', password: '' })
 
@@ -177,12 +189,17 @@ onMounted(async () => {
 })
 
 function goOAuth(provider) {
-  const url = provider.authorize_url || getOAuthUrl(provider.id || provider.provider_id)
+  const providerId = provider.id || provider.provider_id
+  const redirectUri = typeof window !== 'undefined' ? window.location.origin : ''
+  const url = provider.authorize_url || getOAuthUrl(providerId, redirectUri)
   if (url) window.location.href = url
 }
 
-watch(method, () => { authError.value = '' })
-watch(passwordSubMode, () => { authError.value = '' })
+watch(method, () => { authError.value = ''; authSuccessMessage.value = '' })
+watch(passwordSubMode, (mode) => {
+  authError.value = ''
+  if (mode === 'register') authSuccessMessage.value = ''
+})
 
 function startEmailCountdown() {
   emailCodeCountdown.value = 60
@@ -239,9 +256,19 @@ async function sendSmsCode() {
 
 async function handleLoginPassword() {
   authError.value = ''
+  const username = loginForm.value.username?.trim() || ''
+  const password = loginForm.value.password || ''
+  if (!username) {
+    authError.value = '请填写用户名或邮箱'
+    return
+  }
+  if (!password) {
+    authError.value = '请填写密码'
+    return
+  }
   loading.value = true
   try {
-    await doLogin({ username: loginForm.value.username, password: loginForm.value.password })
+    await doLogin({ username, password })
     emit('success')
     emit('close')
   } catch (e) {
@@ -251,17 +278,50 @@ async function handleLoginPassword() {
   }
 }
 
+function isValidEmail(s) {
+  const t = (s || '').trim()
+  return t.length > 0 && t.includes('@')
+}
+
 async function handleRegisterPassword() {
   authError.value = ''
+  const username = registerForm.value.username?.trim() || ''
+  const email = registerForm.value.email?.trim() || ''
+  const password = registerForm.value.password || ''
+  if (!username) {
+    authError.value = '请填写用户名'
+    return
+  }
+  if (!email) {
+    authError.value = '请填写邮箱'
+    return
+  }
+  if (!isValidEmail(email)) {
+    authError.value = '请输入有效的邮箱地址（需包含 @）'
+    return
+  }
+  if (!password) {
+    authError.value = '请填写密码'
+    return
+  }
+  const password_confirm = registerForm.value.password_confirm || ''
+  if (password !== password_confirm) {
+    authError.value = '两次输入的密码不一致'
+    return
+  }
   loading.value = true
   try {
     await doRegister({
-      username: registerForm.value.username,
-      email: registerForm.value.email || undefined,
-      password: registerForm.value.password,
+      user_name: username,
+      password,
+      user_full_name: registerForm.value.user_full_name || '',
+      email,
+      phone: registerForm.value.phone || '',
     })
-    emit('success')
-    emit('close')
+    authSuccessMessage.value = '注册成功，请登录'
+    loginForm.value.username = username
+    loginForm.value.password = ''
+    passwordSubMode.value = 'login'
   } catch (e) {
     authError.value = e?.data?.detail || e?.message || '注册失败'
   } finally {
@@ -271,9 +331,19 @@ async function handleRegisterPassword() {
 
 async function handleEmailCodeSubmit() {
   authError.value = ''
+  const email = codeEmailForm.value.email?.trim() || ''
+  const code = codeEmailForm.value.code?.trim() || ''
+  if (!email) {
+    authError.value = '请填写邮箱'
+    return
+  }
+  if (!code) {
+    authError.value = '请填写验证码'
+    return
+  }
   loading.value = true
   try {
-    await doLoginByEmailCode(codeEmailForm.value.email.trim(), codeEmailForm.value.code.trim())
+    await doLoginByEmailCode(email, code)
     emit('success')
     emit('close')
   } catch (e) {
@@ -282,10 +352,11 @@ async function handleEmailCodeSubmit() {
     if (notFound) {
       try {
         await doRegisterByEmailCode({
-          email: codeEmailForm.value.email.trim(),
-          code: codeEmailForm.value.code.trim(),
+          email,
+          code,
           password: codeEmailForm.value.password?.trim() || undefined,
         })
+        await doLoginByEmailCode(email, code)
         emit('success')
         emit('close')
         return
@@ -301,11 +372,21 @@ async function handleEmailCodeSubmit() {
 }
 
 async function handlePhoneCodeSubmit() {
-  const phone = `+86${codePhoneForm.value.phone.trim()}`
   authError.value = ''
+  const phoneRaw = codePhoneForm.value.phone?.trim() || ''
+  const code = codePhoneForm.value.code?.trim() || ''
+  if (!phoneRaw) {
+    authError.value = '请填写手机号'
+    return
+  }
+  if (!code) {
+    authError.value = '请填写验证码'
+    return
+  }
+  const phone = `+86${phoneRaw}`
   loading.value = true
   try {
-    await doLoginByPhoneCode(phone, codePhoneForm.value.code.trim())
+    await doLoginByPhoneCode(phone, code)
     emit('success')
     emit('close')
   } catch (e) {
@@ -315,9 +396,10 @@ async function handlePhoneCodeSubmit() {
       try {
         await doRegisterByPhoneCode({
           phone,
-          code: codePhoneForm.value.code.trim(),
+          code,
           password: codePhoneForm.value.password?.trim() || undefined,
         })
+        await doLoginByPhoneCode(phone, code)
         emit('success')
         emit('close')
         return
@@ -564,6 +646,11 @@ async function handlePhoneCodeSubmit() {
   margin: -8px 0 12px;
   font-size: 13px;
   color: #d93025;
+}
+.success-msg {
+  margin: -8px 0 12px;
+  font-size: 13px;
+  color: #1e8e3e;
 }
 .submit-btn {
   width: 100%;
