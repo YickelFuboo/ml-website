@@ -2,7 +2,7 @@
   <div class="app">
     <AppHeader />
     <main class="main-content">
-      <!-- 页面正式内容预留，后续添加 -->
+      <router-view />
     </main>
   </div>
 </template>
@@ -40,11 +40,16 @@ html, body, #app {
   height: 100%;
 }
 .app {
+  display: flex;
+  flex-direction: column;
   min-height: 100%;
   background-color: #F5F7FA;
 }
 .main-content {
-  min-height: calc(100vh - 56px);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   padding: 0;
 }
 </style>

@@ -17,6 +17,14 @@ export const API_USER_SERVICE_URL = (() => {
   return ''
 })()
 
+/** 产品管理服务（产品与版本，端口 8002） */
+export const API_PRODUCT_SERVICE_URL = (() => {
+  const v = import.meta.env.VITE_API_PRODUCT_SERVICE_URL
+  if (v !== undefined && v !== '') return v
+  if (isDev) return 'http://localhost:8002'
+  return ''
+})()
+
 /** @deprecated 请使用 API_USER_SERVICE_URL */
 export const API_BASE_URL = API_USER_SERVICE_URL
 

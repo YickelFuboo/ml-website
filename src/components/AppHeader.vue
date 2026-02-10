@@ -9,25 +9,14 @@
       </div>
       <div class="header-right">
         <div class="product-select-wrapper">
-          <select
-            v-model="selectedProduct"
-            class="product-select"
-            aria-label="产品选择"
-          >
-            <option
-              v-for="item in productOptions"
-              :key="item.value"
-              :value="item.value"
-            >
-              {{ item.label }}
-            </option>
-          </select>
+          <ProductSelector v-if="isLoggedIn" />
+          <span v-else class="product-placeholder">魔灵（MOLING）</span>
         </div>
         <button
           type="button"
           class="header-btn icon-btn"
           aria-label="设置"
-          @click="onSettings"
+          @click="goSettings"
         >
           <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"/>
@@ -83,13 +72,10 @@ import AuthDialog from './AuthDialog.vue'
 import UserMenu from './UserMenu.vue'
 import UserEditDialog from './UserEditDialog.vue'
 import ChangePasswordDialog from './ChangePasswordDialog.vue'
+import ProductSelector from './ProductSelector.vue'
+import { useRouter } from 'vue-router'
 
-const selectedProduct = ref('moling')
-const productOptions = ref([
-  { value: 'moling', label: '魔灵' },
-  { value: 'notebook', label: '笔记本' },
-])
-
+const router = useRouter()
 const { user, userDisplayName, isLoggedIn, logout, fetchUser, setToken, avatarUrl, loadAvatar, avatarObjectUrls } = useAuth()
 
 const showAuthDialog = ref(false)
@@ -113,8 +99,8 @@ const userAvatarLetter = computed(() => {
     : '?'
 })
 
-function onSettings() {
-  console.log('设置')
+function goSettings() {
+  router.push('/settings')
 }
 
 function onUserClick() {
@@ -212,6 +198,10 @@ onUnmounted(() => {
 }
 .product-select-wrapper {
   position: relative;
+}
+.product-placeholder {
+  font-size: 14px;
+  color: #202124;
 }
 .product-select {
   height: 36px;
