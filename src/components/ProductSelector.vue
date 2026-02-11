@@ -12,13 +12,13 @@
         <polyline points="6 9 12 15 18 9"/>
       </svg>
     </button>
-    <div v-if="open" class="product-selector-dropdown" role="listbox">
+    <div v-if="open" class="product-selector-dropdown" role="listbox" aria-label="选择版本">
       <div
         v-for="product in productList"
         :key="product.id"
         class="product-group"
       >
-        <div class="product-group-name">{{ product.name }}</div>
+        <div class="product-group-name" aria-hidden="true">{{ product.name }}</div>
         <button
           v-for="ver in (product.versions || [])"
           :key="ver.id"
@@ -30,14 +30,13 @@
         >
           {{ ver.name }}
         </button>
-        <button
+        <div
           v-if="!product.versions || product.versions.length === 0"
-          type="button"
           class="product-option empty"
-          disabled
+          role="presentation"
         >
           暂无版本
-        </button>
+        </div>
       </div>
       <div v-if="productList.length === 0" class="product-selector-empty">暂无产品</div>
     </div>
@@ -134,6 +133,9 @@ onUnmounted(() => {
   font-size: 12px;
   color: #5f6368;
   font-weight: 500;
+  cursor: default;
+  user-select: none;
+  pointer-events: none;
 }
 .product-option {
   display: block;
@@ -156,6 +158,8 @@ onUnmounted(() => {
 .product-option.empty {
   cursor: default;
   color: #9aa0a6;
+  background: none;
+  border: none;
 }
 .product-selector-empty {
   padding: 16px 12px;

@@ -17,8 +17,8 @@ export function useProductSelection() {
   const displayLabel = computed(() => {
     const p = selectedProduct.value
     const v = selectedVersion.value
-    if (!p) return '请选择产品'
-    if (!v) return p.name
+    if (!p) return '请选择版本'
+    if (!v) return `${p.name}（请选择版本）`
     return `${p.name} - ${v.name}`
   })
 

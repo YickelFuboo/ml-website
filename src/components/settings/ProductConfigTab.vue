@@ -7,7 +7,7 @@
           <div class="panel-actions">
             <button type="button" class="btn primary" @click="openAddProduct">新增产品</button>
             <button
-              v-if="selectedProductId"
+              v-if="localSelectedProductId"
               type="button"
               class="btn primary"
               @click="openAddVersion"
@@ -15,7 +15,7 @@
               新增版本
             </button>
             <button
-              v-if="selectedProductId && !selectedNodeVersion"
+              v-if="localSelectedProductId && !selectedNodeVersion"
               type="button"
               class="btn danger"
               @click="confirmDeleteProduct"
@@ -42,7 +42,7 @@
             <button
               type="button"
               class="tree-label"
-              :class="{ active: selectedProductId === product.id && !selectedNodeVersion }"
+              :class="{ active: localSelectedProductId === product.id && !selectedNodeVersion }"
               @click="selectProduct(product)"
             >
               <span class="tree-icon" aria-hidden="true">P</span>
@@ -70,7 +70,7 @@
         <div class="panel-header panel-header-right">
           <span class="panel-title">详情</span>
         </div>
-        <div v-if="!selectedProductId" class="placeholder">请在左侧选择产品或版本</div>
+        <div v-if="!localSelectedProductId" class="placeholder">请在左侧选择产品或版本</div>
         <template v-else-if="selectedNodeVersion">
           <div class="detail-form">
             <div class="field">
@@ -92,9 +92,13 @@
               <label>描述</label>
               <textarea v-model="productForm.description" rows="2" placeholder="选填" />
             </div>
-            <div class="field field-define">
-              <label>产品定义（MD）</label>
-              <textarea v-model="productForm.product_define" rows="18" placeholder="选填，一般为 Markdown" class="textarea-define" />
+            <div class="field field-md field-define">
+              <div class="field-md-header">
+                <label>产品定义（MD）</label>
+                <button type="button" class="btn-md-toggle" @click="productDefineShowPreview = !productDefineShowPreview">{{ productDefineShowPreview ? '源码' : '效果' }}</button>
+              </div>
+              <textarea v-if="!productDefineShowPreview" v-model="productForm.product_define" rows="6" placeholder="选填，一般为 Markdown" class="textarea-define" />
+              <div v-else class="md-preview md-preview-define" v-html="renderMd(productForm.product_define)" />
             </div>
             <div class="form-actions">
               <button type="button" class="btn primary" :disabled="saving" @click="saveProduct">保存</button>
@@ -122,18 +126,25 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { marked } from 'marked'
 import { useProductSelection } from '../../composables/useProductSelection.js'
 import { updateProduct, updateVersion, deleteProduct, deleteVersion } from '../../api/product.js'
 import { isProductLoggedIn } from '../../api/requestProduct.js'
 import ProductFormDialog from '../ProductFormDialog.vue'
 import VersionFormDialog from '../VersionFormDialog.vue'
 
+const productDefineShowPreview = ref(false)
+function renderMd(text) {
+  const s = text != null ? String(text).trim() : ''
+  if (!s) return '<p class="md-empty">暂无内容</p>'
+  return marked.parse(s)
+}
+
 const {
   productList,
   selectedProductId,
   selectedVersionId,
   fetchList,
-  setSelection,
   updateListAfterEdit,
   updateListAfterVersionEdit,
   addProductToList,
@@ -144,6 +155,8 @@ const {
 
 const loading = ref(false)
 const saving = ref(false)
+const localSelectedProductId = ref('')
+const localSelectedVersionId = ref('')
 const selectedNodeVersion = ref(null)
 const productForm = ref({ name: '', description: '', product_define: '' })
 const versionForm = ref({ name: '' })
@@ -154,12 +167,14 @@ const versionFormProductId = ref('')
 const versionFormProductName = ref('')
 const versionFormTarget = ref(null)
 
-const selectedProduct = computed(() => productList.value.find((p) => p.id === selectedProductId.value) || null)
+const selectedProduct = computed(() => productList.value.find((p) => p.id === localSelectedProductId.value) || null)
 
 onMounted(async () => {
   loading.value = true
   try {
     await fetchList()
+    localSelectedProductId.value = selectedProductId.value
+    localSelectedVersionId.value = selectedVersionId.value
   } catch (e) {
     if (e?.needLogin) alert('请先登录')
   } finally {
@@ -168,11 +183,11 @@ onMounted(async () => {
 })
 
 watch(
-  () => [selectedProductId.value, selectedVersionId.value],
+  () => [localSelectedProductId.value, localSelectedVersionId.value],
   () => {
     selectedNodeVersion.value = null
-    if (selectedVersionId.value && selectedProduct.value) {
-      const ver = selectedProduct.value.versions?.find((v) => v.id === selectedVersionId.value)
+    if (localSelectedVersionId.value && selectedProduct.value) {
+      const ver = selectedProduct.value.versions?.find((v) => v.id === localSelectedVersionId.value)
       selectedNodeVersion.value = ver || null
     }
   },
@@ -202,12 +217,14 @@ watch(
 )
 
 function selectProduct(product) {
-  setSelection(product.id, '')
+  localSelectedProductId.value = product.id
+  localSelectedVersionId.value = ''
   selectedNodeVersion.value = null
 }
 
 function selectVersion(product, version) {
-  setSelection(product.id, version.id)
+  localSelectedProductId.value = product.id
+  localSelectedVersionId.value = version.id
   selectedNodeVersion.value = version
 }
 
@@ -276,7 +293,7 @@ async function saveVersion() {
   saving.value = true
   try {
     const result = await updateVersion(selectedNodeVersion.value.id, { name })
-    updateListAfterVersionEdit(selectedProductId.value, result)
+    updateListAfterVersionEdit(localSelectedProductId.value, result)
     selectedNodeVersion.value = result
   } catch (e) {
     alert(e?.needLogin ? '请先登录' : (e?.data?.detail || e?.message || '保存失败'))
@@ -306,7 +323,8 @@ function confirmDeleteVersion() {
     .then(() => {
       removeVersionFromList(p.id, v.id)
       selectedNodeVersion.value = null
-      setSelection(p.id, p.versions?.[0]?.id || '')
+      const prod = productList.value.find((x) => x.id === p.id)
+      localSelectedVersionId.value = prod?.versions?.[0]?.id || ''
     })
     .catch((e) => alert(e?.needLogin ? '请先登录' : (e?.data?.detail || e?.message || '删除失败')))
 }
@@ -339,6 +357,7 @@ function confirmDeleteVersion() {
   width: 32%;
   min-width: 280px;
   max-width: 400px;
+  min-height: 0;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
@@ -351,7 +370,7 @@ function confirmDeleteVersion() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 48px;
+  min-height: 40px;
   padding: 0 16px;
   border-bottom: 1px solid #e8eaed;
   flex-shrink: 0;
@@ -417,6 +436,7 @@ function confirmDeleteVersion() {
 .panel-right {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -424,13 +444,69 @@ function confirmDeleteVersion() {
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
-.detail-form { padding: 24px; overflow-y: auto; flex: 1; }
+.detail-form {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 24px 20px;
+  overflow-y: auto;
+}
 .detail-form .field { margin-bottom: 20px; }
 .detail-form label { display: block; margin-bottom: 6px; font-size: 14px; color: #202124; }
 .detail-form input, .detail-form textarea {
-  width: 100%; padding: 8px 12px; font-size: 14px; border: 1px solid #dadce0; border-radius: 6px; box-sizing: border-box;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.5;
+  color: #202124;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  box-sizing: border-box;
 }
 .detail-form textarea { resize: vertical; min-height: 60px; }
-.detail-form .textarea-define { min-height: 360px; height: 360px; }
-.form-actions { margin-top: 20px; }
+.detail-form .textarea-define { min-height: 120px; height: 120px; }
+.field-md-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.field-md-header label { margin-bottom: 0; }
+.detail-form .btn-md-toggle {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #5f6368;
+  background: #f1f3f4;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.detail-form .btn-md-toggle:hover {
+  background: #e8eaed;
+  color: #202124;
+}
+.detail-form .md-preview {
+  min-height: 120px;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #202124;
+  background: #f8f9fa;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  box-sizing: border-box;
+  overflow: auto;
+}
+.detail-form .md-preview :deep(h1) { font-size: 1.25em; margin: 0 0 0.5em; }
+.detail-form .md-preview :deep(h2) { font-size: 1.1em; margin: 0.75em 0 0.35em; }
+.detail-form .md-preview :deep(h3) { font-size: 1em; margin: 0.5em 0 0.25em; }
+.detail-form .md-preview :deep(p) { margin: 0 0 0.5em; }
+.detail-form .md-preview :deep(ul), .detail-form .md-preview :deep(ol) { margin: 0 0 0.5em; padding-left: 1.5em; }
+.detail-form .md-preview :deep(code) { background: #e8eaed; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+.detail-form .md-preview :deep(pre) { background: #e8eaed; padding: 10px; border-radius: 6px; overflow: auto; margin: 0 0 0.5em; }
+.detail-form .md-preview :deep(pre code) { background: none; padding: 0; }
+.detail-form .md-preview .md-empty { color: #9aa0a6; margin: 0; }
+.form-actions { margin-top: 12px; }
 </style>

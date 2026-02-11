@@ -62,6 +62,7 @@
     <AuthDialog v-if="showAuthDialog" @close="showAuthDialog = false" @success="showAuthDialog = false" />
     <UserEditDialog v-if="showEditDialog" :user="user" @close="showEditDialog = false" @success="showEditDialog = false" />
     <ChangePasswordDialog v-if="showChangePasswordDialog" @close="showChangePasswordDialog = false" @success="showChangePasswordDialog = false" />
+    <SettingsDialog v-if="showSettingsDialog" @close="showSettingsDialog = false" />
   </header>
 </template>
 
@@ -73,12 +74,12 @@ import UserMenu from './UserMenu.vue'
 import UserEditDialog from './UserEditDialog.vue'
 import ChangePasswordDialog from './ChangePasswordDialog.vue'
 import ProductSelector from './ProductSelector.vue'
-import { useRouter } from 'vue-router'
+import SettingsDialog from './SettingsDialog.vue'
 
-const router = useRouter()
 const { user, userDisplayName, isLoggedIn, logout, fetchUser, setToken, avatarUrl, loadAvatar, avatarObjectUrls } = useAuth()
 
 const showAuthDialog = ref(false)
+const showSettingsDialog = ref(false)
 const showUserMenu = ref(false)
 const showEditDialog = ref(false)
 const showChangePasswordDialog = ref(false)
@@ -100,7 +101,11 @@ const userAvatarLetter = computed(() => {
 })
 
 function goSettings() {
-  router.push('/settings')
+  if (!isLoggedIn.value) {
+    showAuthDialog.value = true
+    return
+  }
+  showSettingsDialog.value = true
 }
 
 function onUserClick() {

@@ -40,17 +40,18 @@ const tabs = [
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 16px 24px 24px;
+  padding: 12px 24px 16px;
   background: #f0f2f5;
+  overflow: hidden;
 }
 .settings-tabs {
   display: flex;
   gap: 4px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   flex-shrink: 0;
 }
 .tab-btn {
-  padding: 10px 20px;
+  padding: 8px 16px;
   font-size: 14px;
   color: #5f6368;
   background: #fff;

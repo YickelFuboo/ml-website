@@ -9,9 +9,7 @@ const routes = [
   },
   {
     path: '/settings',
-    name: 'Settings',
-    component: () => import('../views/SettingsPage.vue'),
-    meta: { title: '设置 - 魔灵' },
+    redirect: '/',
   },
 ]
 
