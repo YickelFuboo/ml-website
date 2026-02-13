@@ -80,3 +80,26 @@ export async function getDocumentChunksBatch(docIds, params = {}) {
   const res = await requestKnowledge(`${PREFIX}/chunks/batch`, { method: 'GET' }, q)
   return res
 }
+
+export async function downloadDocument(docId) {
+  const uid = getKnowledgeUserId()
+  const url = new URL(`${BASE_URL}${PREFIX}/${encodeURIComponent(docId)}/download`)
+  if (uid) url.searchParams.set('user_id', uid)
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('moling_token') || '' : ''
+  const headers = { Authorization: token ? `Bearer ${token}` : '' }
+  const res = await fetch(url.toString(), { method: 'GET', headers })
+  if (!res.ok) {
+    const text = await res.text()
+    let data = null
+    try {
+      data = text ? JSON.parse(text) : null
+    } catch {
+      data = { message: text }
+    }
+    const err = new Error(data?.detail?.message || data?.message || res.statusText || '下载失败')
+    err.status = res.status
+    err.data = data
+    throw err
+  }
+  return res.blob()
+}

@@ -360,9 +360,13 @@
                       <td class="col-desc" :title="doc.description || ''">{{ doc.description || '—' }}</td>
                       <td class="col-size">{{ formatFileSize(doc.size) }}</td>
                       <td class="col-status">{{ processStatusLabel(doc.process_status) }}</td>
-                      <td class="col-slices">{{ doc.chunk_count ?? 0 }}</td>
+                      <td class="col-slices">
+                        <a v-if="doc.chunk_count > 0" href="#" class="chunk-link" @click.prevent="downloadChunks(doc)">{{ doc.chunk_count ?? 0 }}</a>
+                        <span v-else>{{ doc.chunk_count ?? 0 }}</span>
+                      </td>
                       <td class="col-actions">
                         <button type="button" class="btn-sm" @click="openDocEdit(doc)">编辑</button>
+                        <button type="button" class="btn-sm" @click="handleDownloadDoc(doc)">下载</button>
                         <button type="button" class="btn-sm" :disabled="docParsePending === doc.id" @click="handleParse(doc)">解析</button>
                         <button type="button" class="btn-sm danger" @click="handleDeleteDoc(doc)">删除</button>
                       </td>
@@ -384,7 +388,7 @@ import { ref, computed, watch } from 'vue'
 import { useProductSelection } from '../../composables/useProductSelection.js'
 import { getCategories, listVersionKbs, addKbToVersion, updateVersionKb, removeKbFromVersion } from '../../api/kbMgmt.js'
 import { createKb, listKbsByTenant, updateKb, deleteKb, getKbDetail, getParserConfigTemplate, updateKbParserConfig, getEmbeddingModels, getRerankModels } from '../../api/knowledgebase.js'
-import { listDocumentsByKb, uploadDocuments, updateDocument, parseDocument, deleteDocument } from '../../api/document.js'
+import { listDocumentsByKb, uploadDocuments, updateDocument, parseDocument, deleteDocument, getDocumentChunksBatch, downloadDocument } from '../../api/document.js'
 
 const { selectedVersionId } = useProductSelection()
 const hasVersion = computed(() => !!selectedVersionId.value)
@@ -794,6 +798,24 @@ async function submitDocEdit() {
   }
 }
 
+async function handleDownloadDoc(doc) {
+  if (!doc.id) return
+  try {
+    const blob = await downloadDocument(doc.id)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    const fileName = doc.name || `document_${doc.id}`
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    const d = e?.data?.detail; alert((typeof d === 'object' && d?.message) ? d.message : (d || e?.message || '下载失败'))
+  }
+}
+
 async function handleDeleteDoc(doc) {
   if (!confirm(`确定删除文档「${doc.name}」？`)) return
   try {
@@ -802,6 +824,54 @@ async function handleDeleteDoc(doc) {
     await loadVersionKbs()
   } catch (e) {
     const d = e?.data?.detail; alert((typeof d === 'object' && d?.message) ? d.message : (d || e?.message || '删除失败'))
+  }
+}
+
+async function downloadChunks(doc) {
+  if (!doc.id || !doc.chunk_count || doc.chunk_count === 0) return
+  try {
+    const allChunks = []
+    const pageSize = 100
+    let page = 1
+    let hasMore = true
+    
+    while (hasMore) {
+      const res = await getDocumentChunksBatch([doc.id], {
+        with_vector: false,
+        page,
+        page_size: pageSize,
+      })
+      const chunks = res?.chunks || res?.items || []
+      if (chunks.length > 0) {
+        allChunks.push(...chunks)
+        if (chunks.length < pageSize) {
+          hasMore = false
+        } else {
+          page++
+        }
+      } else {
+        hasMore = false
+      }
+    }
+    
+    if (!allChunks.length) {
+      alert('暂无切片数据')
+      return
+    }
+    
+    const dataStr = JSON.stringify(allChunks, null, 2)
+    const blob = new Blob([dataStr], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    const fileName = `${(doc.name || doc.id).replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}_chunks.json`
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    const d = e?.data?.detail; alert((typeof d === 'object' && d?.message) ? d.message : (d || e?.message || '下载失败'))
   }
 }
 
@@ -1430,7 +1500,15 @@ async function handleDelete(item) {
 .doc-table .col-size { width: 80px; color: #5f6368; }
 .doc-table .col-status { width: 90px; color: #5f6368; }
 .doc-table .col-slices { width: 70px; color: #5f6368; }
-.doc-table .col-actions { width: 150px; white-space: nowrap; }
+.doc-table .col-slices .chunk-link {
+  color: #1a73e8;
+  text-decoration: none;
+  cursor: pointer;
+}
+.doc-table .col-slices .chunk-link:hover {
+  text-decoration: underline;
+}
+.doc-table .col-actions { width: 200px; white-space: nowrap; }
 .doc-table .col-actions .btn-sm { margin-right: 4px; }
 .doc-table .col-actions .btn-sm:last-child { margin-right: 0; }
 </style>
