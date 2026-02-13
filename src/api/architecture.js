@@ -1,6 +1,6 @@
 import { requestProduct, getProductUserId } from './requestProduct.js'
 
-const PREFIX = '/api/v1/api/arch'
+const PREFIX = '/api/v1/arch'
 
 function archQuery() {
   const uid = getProductUserId()

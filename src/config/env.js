@@ -25,6 +25,14 @@ export const API_PRODUCT_SERVICE_URL = (() => {
   return ''
 })()
 
+/** 知识库原子服务（知识库与文档，端口按实际部署） */
+export const API_KNOWLEDGEBASE_SERVICE_URL = (() => {
+  const v = import.meta.env.VITE_API_KNOWLEDGEBASE_SERVICE_URL
+  if (v !== undefined && v !== '') return v
+  if (isDev) return 'http://localhost:8003'
+  return ''
+})()
+
 /** @deprecated 请使用 API_USER_SERVICE_URL */
 export const API_BASE_URL = API_USER_SERVICE_URL
 

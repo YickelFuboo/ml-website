@@ -16,6 +16,7 @@
       <ProductConfigTab v-if="activeTab === 'product'" />
       <ScenarioManageTab v-else-if="activeTab === 'scenario'" />
       <ArchitectureManageTab v-else-if="activeTab === 'architecture'" />
+      <KnowledgeManageTab v-else-if="activeTab === 'knowledge'" />
     </div>
   </div>
 </template>
@@ -25,12 +26,14 @@ import { ref } from 'vue'
 import ProductConfigTab from '../components/settings/ProductConfigTab.vue'
 import ScenarioManageTab from '../components/settings/ScenarioManageTab.vue'
 import ArchitectureManageTab from '../components/settings/ArchitectureManageTab.vue'
+import KnowledgeManageTab from '../components/settings/KnowledgeManageTab.vue'
 
 const activeTab = ref('product')
 const tabs = [
   { id: 'product', label: '产品配置' },
   { id: 'scenario', label: '场景管理' },
   { id: 'architecture', label: '架构管理' },
+  { id: 'knowledge', label: '知识库管理' },
 ]
 </script>
 
