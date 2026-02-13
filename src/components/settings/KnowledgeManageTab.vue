@@ -351,6 +351,7 @@
                       <th class="col-size">文档大小</th>
                       <th class="col-status">文档状态</th>
                       <th class="col-slices">切片数</th>
+                      <th class="col-created">创建时间</th>
                       <th class="col-actions">文档操作</th>
                     </tr>
                   </thead>
@@ -364,6 +365,7 @@
                         <a v-if="doc.chunk_count > 0" href="#" class="chunk-link" @click.prevent="downloadChunks(doc)">{{ doc.chunk_count ?? 0 }}</a>
                         <span v-else>{{ doc.chunk_count ?? 0 }}</span>
                       </td>
+                      <td class="col-created">{{ formatDateTime(doc.created_at || doc.created_time || doc.create_time) }}</td>
                       <td class="col-actions">
                         <button type="button" class="btn-sm" @click="openDocEdit(doc)">编辑</button>
                         <button type="button" class="btn-sm" @click="handleDownloadDoc(doc)">下载</button>
@@ -726,6 +728,22 @@ function formatFileSize(bytes) {
   if (n < 1024) return `${n} B`
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
   return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function formatDateTime(dateTime) {
+  if (!dateTime) return '—'
+  try {
+    const date = new Date(dateTime)
+    if (isNaN(date.getTime())) return '—'
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${day} ${hours}:${minutes}`
+  } catch {
+    return '—'
+  }
 }
 
 function processStatusLabel(status) {
@@ -1297,16 +1315,16 @@ async function handleDelete(item) {
   border-radius: 4px;
   border: none;
   cursor: pointer;
-  background: #111;
+  background: #5f6368;
   color: #fff;
 }
-.btn-sm:hover { background: #000; }
-.btn-sm.danger { background: #b3261e; }
-.btn-sm.danger:hover { background: #9c1f18; }
-.btn { padding: 6px 12px; font-size: 13px; border-radius: 6px; cursor: pointer; border: none; background: #111; color: #fff; }
-.btn:hover:not(:disabled) { background: #000; }
-.btn.primary { background: #111; color: #fff; }
-.btn.primary:hover:not(:disabled) { background: #000; }
+.btn-sm:hover { background: #80868b; }
+.btn-sm.danger { background: #ea4335; }
+.btn-sm.danger:hover { background: #d33b2c; }
+.btn { padding: 6px 12px; font-size: 13px; border-radius: 6px; cursor: pointer; border: none; background: #5f6368; color: #fff; }
+.btn:hover:not(:disabled) { background: #80868b; }
+.btn.primary { background: #5f6368; color: #fff; }
+.btn.primary:hover:not(:disabled) { background: #80868b; }
 .btn.primary:disabled { opacity: 0.6; cursor: not-allowed; }
 .dialog-mask {
   position: fixed;
@@ -1495,9 +1513,9 @@ async function handleDelete(item) {
 }
 .doc-table tbody tr:nth-child(even) { background: #f8fafc; }
 .doc-table tbody tr:hover { background: #e8f0fe; }
-.doc-table .col-name { min-width: 120px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.doc-table .col-desc { min-width: 100px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #5f6368; }
-.doc-table .col-size { width: 80px; color: #5f6368; }
+.doc-table .col-name { min-width: 70px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-table .col-desc { min-width: 150px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #5f6368; }
+.doc-table .col-size { width: 100px; color: #5f6368; }
 .doc-table .col-status { width: 90px; color: #5f6368; }
 .doc-table .col-slices { width: 70px; color: #5f6368; }
 .doc-table .col-slices .chunk-link {
@@ -1508,6 +1526,7 @@ async function handleDelete(item) {
 .doc-table .col-slices .chunk-link:hover {
   text-decoration: underline;
 }
+.doc-table .col-created { width: 160px; color: #5f6368; white-space: nowrap; }
 .doc-table .col-actions { width: 200px; white-space: nowrap; }
 .doc-table .col-actions .btn-sm { margin-right: 4px; }
 .doc-table .col-actions .btn-sm:last-child { margin-right: 0; }
