@@ -1,4 +1,5 @@
 import { requestKnowledge, getKnowledgeUserId } from './requestKnowledge.js'
+import { API_KNOWLEDGEBASE_SERVICE_URL } from '../config/env.js'
 
 const PREFIX = '/api/v1/qa'
 
@@ -17,7 +18,7 @@ export async function kbQuery(tenantId, body) {
 }
 
 export async function kbQueryStream(tenantId, body, onChunk) {
-  const base = import.meta.env.VITE_API_KNOWLEDGEBASE_SERVICE_URL || ''
+  const base = API_KNOWLEDGEBASE_SERVICE_URL || ''
   const uid = getKnowledgeUserId()
   const url = `${base}${PREFIX}/kb-query/stream?tenant_id=${encodeURIComponent(tenantId)}&user_id=${encodeURIComponent(uid || '')}`
   const token = typeof localStorage !== 'undefined' ? localStorage.getItem('moling_token') || '' : ''

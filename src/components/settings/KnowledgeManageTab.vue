@@ -1137,13 +1137,16 @@ async function handleDelete(item) {
   if (!confirm(`确定删除知识库「${displayName}」？将同时删除知识库及其与当前版本的关系，且不可恢复。`)) return
   const versionId = selectedVersionId.value
   if (!versionId || !item?.id) return
+  if (selectedKbId.value === item.kb_id) selectedKbId.value = ''
   try {
-    if (selectedKbId.value === item.kb_id) selectedKbId.value = ''
     await removeKbFromVersion(versionId, item.id)
-    await deleteKb(item.kb_id)
-    await loadVersionKbs()
+    try {
+      await deleteKb(item.kb_id)
+    } catch (_) {}
   } catch (e) {
     const d = e?.data?.detail; alert((typeof d === 'object' && d?.message) ? d.message : (d || e?.message || '操作失败'))
+  } finally {
+    await loadVersionKbs()
   }
 }
 </script>

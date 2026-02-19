@@ -42,7 +42,9 @@ html, body, #app {
 .app {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   background-color: #F5F7FA;
 }
 .main-content {
@@ -51,5 +53,6 @@ html, body, #app {
   display: flex;
   flex-direction: column;
   padding: 0;
+  overflow: hidden;
 }
 </style>

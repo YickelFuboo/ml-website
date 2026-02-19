@@ -15,6 +15,7 @@ const { selectedVersionId } = useProductSelection()
 .qa-page {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   padding: 12px 24px 16px;

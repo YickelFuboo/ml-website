@@ -63,8 +63,9 @@
           </div>
         </div>
       </div>
-      <div class="qa-chat-messages" ref="messagesRef">
-        <div v-if="!messages.length" class="qa-chat-empty">输入问题开始对话</div>
+      <div class="qa-chat-body">
+        <div class="qa-chat-messages" ref="messagesRef">
+          <div v-if="!messages.length" class="qa-chat-empty">输入问题开始对话</div>
         <div
           v-for="(msg, idx) in messages"
           :key="idx"
@@ -90,15 +91,15 @@
             <div class="qa-msg-content qa-markdown" v-html="renderMarkdown(streamBuffer || '…')"></div>
           </div>
         </div>
-      </div>
-      <div class="qa-chat-input-wrap">
+        </div>
+        <div class="qa-chat-input-wrap">
         <div class="qa-chat-options">
           <div class="qa-kb-select-row">
             <button
               type="button"
               class="qa-kb-trigger"
               :disabled="!tenantId || kbLoading"
-              @click="showKbDrawer = true"
+              @click="openKbDrawer"
             >
               <span class="qa-kb-trigger-label">知识库选择</span>
               <span class="qa-kb-trigger-arrow">▼</span>
@@ -123,15 +124,21 @@
           </div>
           <div class="qa-kb-drawer-body">
             <div v-if="kbLoading" class="qa-kb-drawer-loading">加载中…</div>
-            <label
-              v-for="kb in kbList"
-              :key="kb.id"
-              class="qa-kb-drawer-item"
-            >
-              <input type="checkbox" :value="kb.id" v-model="selectedKbIds" />
-              <span>{{ kb.name || kb.id }}</span>
-            </label>
-            <div v-if="!kbLoading && !kbList.length" class="qa-kb-drawer-empty">暂无知识库</div>
+            <template v-else>
+              <div v-for="group in kbGroups" :key="group.category" class="qa-kb-drawer-group">
+                <div class="qa-kb-drawer-group-title">{{ group.category_display || group.category || '未分类' }}</div>
+                <label
+                  v-for="item in group.items"
+                  :key="item.kb_id"
+                  class="qa-kb-drawer-item"
+                >
+                  <input type="checkbox" :value="item.kb_id" v-model="selectedKbIds" />
+                  <span>{{ item.name || item.kb_id }}</span>
+                </label>
+              </div>
+              <div v-if="!tenantId" class="qa-kb-drawer-empty">请先在顶部选择产品版本</div>
+              <div v-else-if="!kbGroups.length" class="qa-kb-drawer-empty">暂无知识库，请在设置-知识库管理中为当前版本添加知识库</div>
+            </template>
           </div>
           <div class="qa-kb-drawer-footer">
             <button type="button" class="qa-kb-drawer-btn" @click="showKbDrawer = false">确定</button>
@@ -141,7 +148,7 @@
           <textarea
             v-model="inputText"
             class="qa-input"
-            :placeholder="inputAllowed ? '输入问题…' : '请先选择左侧历史会话或点击「新对话」'"
+            :placeholder="inputAllowed ? '输入问题…' : '请先在顶部选择产品版本'"
             rows="2"
             :readonly="!inputAllowed"
             @keydown.enter.exact.prevent="inputAllowed && send()"
@@ -177,6 +184,7 @@
             </button>
           </div>
         </div>
+        </div>
       </div>
     </div>
   </div>
@@ -187,6 +195,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { marked } from 'marked'
 import { useAuth } from '../composables/useAuth.js'
 import { listKbsByTenant, getChatModels } from '../api/knowledgebase.js'
+import { listVersionKbs } from '../api/kbMgmt.js'
 import { listSessions, getSessionInfo, createSession } from '../api/session.js'
 import { kbQuery, kbQueryStream } from '../api/qa.js'
 import { chat, chatStream } from '../api/llmChat.js'
@@ -210,6 +219,7 @@ const props = defineProps({
 
 const tenantId = computed(() => props.tenantId)
 const kbList = ref([])
+const kbGroups = ref([])
 const kbLoading = ref(false)
 const selectedKbIds = ref([])
 const messages = ref([])
@@ -279,7 +289,7 @@ const selectedModel = computed(() => {
   }
 })
 
-const inputAllowed = computed(() => !!currentSessionId.value || isNewChatActive.value)
+const inputAllowed = computed(() => !!tenantId.value)
 
 const showKbDrawer = ref(false)
 const creatingSession = ref(false)
@@ -428,23 +438,55 @@ async function loadHistory(item) {
   }
 }
 
+function openKbDrawer() {
+  showKbDrawer.value = true
+  loadKbs()
+}
+
 async function loadKbs() {
-  if (!tenantId.value) {
+  const versionId = tenantId.value
+  if (!versionId) {
     kbList.value = []
+    kbGroups.value = []
     return
   }
   kbLoading.value = true
   try {
-    const res = await listKbsByTenant(tenantId.value, { items_per_page: 200 })
-    kbList.value = res?.items ?? []
+    const [versionRes, kbRes] = await Promise.all([
+      listVersionKbs(versionId),
+      listKbsByTenant(versionId, { items_per_page: 200 }),
+    ])
+    const kbInfoMap = {}
+    ;(kbRes?.items ?? []).forEach((kb) => {
+      const id = kb.id ?? kb.kb_id
+      if (id) {
+        const name = kb.name ?? kb.kb_name ?? kb.display_name ?? id
+        kbInfoMap[id] = { id, name }
+      }
+    })
+    const byCategory = versionRes?.by_category ?? []
+    const groups = byCategory.map((g) => ({
+      category: g.category,
+      category_display: g.category_display ?? g.category ?? '未分类',
+      items: (g.items ?? []).map((item) => ({
+        kb_id: item.kb_id,
+        name: kbInfoMap[item.kb_id]?.name ?? item.name ?? item.kb_id,
+      })).filter((item) => item.kb_id),
+    })).filter((g) => g.items.length > 0)
+    kbGroups.value = groups
+    kbList.value = groups.flatMap((g) => g.items.map((i) => ({ id: i.kb_id, name: i.name })))
   } catch {
     kbList.value = []
+    kbGroups.value = []
   } finally {
     kbLoading.value = false
   }
 }
 
-watch(tenantId, loadKbs, { immediate: true })
+watch(tenantId, () => {
+  selectedKbIds.value = []
+  loadKbs()
+}, { immediate: true })
 watch(() => props.tenantId, () => {
   loadChatModels()
   loadSessionList()
@@ -464,7 +506,6 @@ async function send() {
   scrollToBottom()
 
   const hasKb = selectedKbIds.value.length > 0
-  const history = messages.value.slice(0, -1).map((m) => ({ role: m.role, content: m.content }))
   const uid = typeof localStorage !== 'undefined' ? localStorage.getItem('moling_user_id') || 'anonymous' : 'anonymous'
 
   try {
@@ -472,20 +513,26 @@ async function send() {
       const body = {
         question: text,
         kb_ids: selectedKbIds.value,
-        history_messages: history.length ? history : undefined,
+        session_id: currentSessionId.value || undefined,
         enable_web_search: enableWebSearch.value,
-        chat_model_provider: selectedModel.value.provider || undefined,
-        chat_model_name: selectedModel.value.model || undefined,
+        model_provider: selectedModel.value.provider || undefined,
+        model_name: selectedModel.value.model || undefined,
       }
       if (streamMode.value) {
-        await kbQueryStream(tenantId.value, body, (answer) => {
-          streamBuffer.value = answer
+        await kbQueryStream(tenantId.value, body, (answer, data) => {
+          if (data?.session_id) currentSessionId.value = data.session_id
+          if (answer !== undefined && (answer || !streamBuffer.value)) {
+            streamBuffer.value = answer
+          }
           scrollToBottom()
         })
         messages.value.push({ role: 'assistant', content: streamBuffer.value || '无回复' })
+        loadSessionList()
       } else {
         const res = await kbQuery(tenantId.value, body)
+        if (res?.session_id) currentSessionId.value = res.session_id
         messages.value.push({ role: 'assistant', content: res?.answer ?? '无回复' })
+        loadSessionList()
       }
     } else {
       const body = {
@@ -541,6 +588,7 @@ function scrollToBottom() {
 .qa-panel-left {
   flex: 0 0 320px;
   min-width: 0;
+  min-height: 0;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
@@ -633,9 +681,17 @@ function scrollToBottom() {
 .qa-panel-right {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.qa-chat-body {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -758,9 +814,12 @@ function scrollToBottom() {
   background: #d2e3fc;
 }
 .qa-chat-messages {
-  flex: 1;
-  overflow: auto;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 16px;
+  background: #fff;
 }
 .qa-chat-empty {
   color: #9aa0a6;
@@ -945,7 +1004,7 @@ function scrollToBottom() {
   flex-shrink: 0;
   padding: 12px 16px;
   border-top: 1px solid #e8eaed;
-  background: #f8fafc;
+  background: #fff;
 }
 .qa-chat-options {
   margin-bottom: 10px;
@@ -1071,6 +1130,19 @@ function scrollToBottom() {
   flex: 1;
   overflow: auto;
   padding: 12px;
+}
+.qa-kb-drawer-group {
+  margin-bottom: 12px;
+}
+.qa-kb-drawer-group:last-child {
+  margin-bottom: 0;
+}
+.qa-kb-drawer-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5f6368;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
 }
 .qa-kb-drawer-loading,
 .qa-kb-drawer-empty {

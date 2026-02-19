@@ -1,4 +1,5 @@
 import { requestKnowledge, getKnowledgeUserId } from './requestKnowledge.js'
+import { API_KNOWLEDGEBASE_SERVICE_URL } from '../config/env.js'
 
 const PREFIX = '/api/v1/chat'
 
@@ -22,7 +23,7 @@ export async function chat(body) {
 
 export async function chatStream(body, onChunk) {
   const uid = getKnowledgeUserId()
-  const base = import.meta.env.VITE_API_KNOWLEDGEBASE_SERVICE_URL || ''
+  const base = API_KNOWLEDGEBASE_SERVICE_URL || ''
   const url = `${base}${PREFIX}/stream?user_id=${encodeURIComponent(uid || 'anonymous')}`
   const token = typeof localStorage !== 'undefined' ? localStorage.getItem('moling_token') || '' : ''
   const res = await fetch(url, {
