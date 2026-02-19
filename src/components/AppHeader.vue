@@ -8,7 +8,7 @@
         </div>
       </div>
       <div class="header-center">
-        <button type="button" class="header-btn" @click="goKnowledgeQA">知识问答</button>
+        <button type="button" class="header-btn" :class="{ 'header-btn-active': currentPath === '/qa' }" @click="goKnowledgeQA">知识问答</button>
         <button type="button" class="header-btn" @click="goRequirementDev">需求开发</button>
       </div>
       <div class="header-right">
@@ -67,16 +67,12 @@
     <UserEditDialog v-if="showEditDialog" :user="user" @close="showEditDialog = false" @success="showEditDialog = false" />
     <ChangePasswordDialog v-if="showChangePasswordDialog" @close="showChangePasswordDialog = false" @success="showChangePasswordDialog = false" />
     <SettingsDialog v-if="showSettingsDialog" @close="showSettingsDialog = false" />
-    <KnowledgeQADialog
-      v-if="showKnowledgeQADialog"
-      :tenant-id="selectedVersionId"
-      @close="showKnowledgeQADialog = false"
-    />
   </header>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
 import AuthDialog from './AuthDialog.vue'
 import UserMenu from './UserMenu.vue'
@@ -84,15 +80,17 @@ import UserEditDialog from './UserEditDialog.vue'
 import ChangePasswordDialog from './ChangePasswordDialog.vue'
 import ProductSelector from './ProductSelector.vue'
 import SettingsDialog from './SettingsDialog.vue'
-import KnowledgeQADialog from './KnowledgeQADialog.vue'
 import { useProductSelection } from '../composables/useProductSelection.js'
+
+const route = useRoute()
+const router = useRouter()
+const currentPath = computed(() => route?.path ?? '')
 
 const { user, userDisplayName, isLoggedIn, logout, fetchUser, setToken, avatarUrl, loadAvatar, avatarObjectUrls } = useAuth()
 const { selectedVersionId } = useProductSelection()
 
 const showAuthDialog = ref(false)
 const showSettingsDialog = ref(false)
-const showKnowledgeQADialog = ref(false)
 const showUserMenu = ref(false)
 const showEditDialog = ref(false)
 const showChangePasswordDialog = ref(false)
@@ -126,7 +124,7 @@ function goKnowledgeQA() {
     showAuthDialog.value = true
     return
   }
-  showKnowledgeQADialog.value = true
+  router.push('/qa')
 }
 
 function goRequirementDev() {
@@ -286,6 +284,11 @@ onUnmounted(() => {
 .header-btn:hover {
   background: #f1f3f4;
   border-color: rgba(0, 0, 0, 0.18);
+}
+.header-btn-active {
+  background: #e8f0fe;
+  border-color: #1a73e8;
+  color: #1a73e8;
 }
 .icon-btn .btn-icon {
   width: 20px;

@@ -8,6 +8,12 @@ const routes = [
     meta: { title: '魔灵' },
   },
   {
+    path: '/qa',
+    name: 'KnowledgeQA',
+    component: () => import('../views/KnowledgeQAPage.vue'),
+    meta: { title: '知识问答 - 魔灵' },
+  },
+  {
     path: '/settings',
     redirect: '/',
   },

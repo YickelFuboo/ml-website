@@ -84,3 +84,8 @@ export async function getRerankModels() {
   const res = await requestKnowledge('/api/v1/models/available/rerank', { method: 'GET' }, query())
   return res
 }
+
+export async function getChatModels() {
+  const res = await requestKnowledge('/api/v1/models/available/chat', { method: 'GET' }, query())
+  return res
+}

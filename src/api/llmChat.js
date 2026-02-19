@@ -1,6 +1,6 @@
 import { requestKnowledge, getKnowledgeUserId } from './requestKnowledge.js'
 
-const PREFIX = '/api/v1/qa'
+const PREFIX = '/api/v1/chat'
 
 function query(extra = {}) {
   const uid = getKnowledgeUserId()
@@ -8,18 +8,22 @@ function query(extra = {}) {
   return { ...q, ...extra }
 }
 
-export async function kbQuery(tenantId, body) {
-  const res = await requestKnowledge(`${PREFIX}/kb-query`, {
+export async function chat(body) {
+  const uid = getKnowledgeUserId()
+  const res = await requestKnowledge(`${PREFIX}/`, {
     method: 'POST',
-    body: JSON.stringify(body),
-  }, query({ tenant_id: tenantId }))
+    body: JSON.stringify({
+      user_id: uid || 'anonymous',
+      ...body,
+    }),
+  }, {})
   return res
 }
 
-export async function kbQueryStream(tenantId, body, onChunk) {
-  const base = import.meta.env.VITE_API_KNOWLEDGEBASE_SERVICE_URL || ''
+export async function chatStream(body, onChunk) {
   const uid = getKnowledgeUserId()
-  const url = `${base}${PREFIX}/kb-query/stream?tenant_id=${encodeURIComponent(tenantId)}&user_id=${encodeURIComponent(uid || '')}`
+  const base = import.meta.env.VITE_API_KNOWLEDGEBASE_SERVICE_URL || ''
+  const url = `${base}${PREFIX}/stream?user_id=${encodeURIComponent(uid || 'anonymous')}`
   const token = typeof localStorage !== 'undefined' ? localStorage.getItem('moling_token') || '' : ''
   const res = await fetch(url, {
     method: 'POST',
@@ -27,7 +31,10 @@ export async function kbQueryStream(tenantId, body, onChunk) {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      user_id: uid || 'anonymous',
+      ...body,
+    }),
   })
   if (!res.ok) {
     const text = await res.text()
@@ -52,8 +59,8 @@ export async function kbQueryStream(tenantId, body, onChunk) {
       if (line.startsWith('data: ')) {
         try {
           const data = JSON.parse(line.slice(6))
-          if (onChunk && data.answer !== undefined) {
-            onChunk(data.answer, data)
+          if (onChunk && data.content !== undefined) {
+            onChunk(data.content, data)
           }
         } catch (_) {}
       }
