@@ -191,7 +191,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { marked } from 'marked'
 import { useAuth } from '../composables/useAuth.js'
 import { listKbsByTenant, getChatModels } from '../api/knowledgebase.js'
@@ -435,6 +435,9 @@ async function loadHistory(item) {
     messages.value = msgs.map((m) => ({ role: m.role || 'user', content: m.content ?? '' }))
   } catch {
     messages.value = []
+  } finally {
+    await nextTick()
+    scrollToBottom()
   }
 }
 
@@ -491,6 +494,9 @@ watch(() => props.tenantId, () => {
   loadChatModels()
   loadSessionList()
 }, { immediate: true })
+watch(messages, () => {
+  nextTick(() => scrollToBottom())
+}, { deep: true })
 
 onMounted(() => {
   loadSessionList()
