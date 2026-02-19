@@ -7,6 +7,10 @@
           <span class="product-title">魔灵（MOLING）</span>
         </div>
       </div>
+      <div class="header-center">
+        <button type="button" class="header-btn" @click="goKnowledgeQA">知识问答</button>
+        <button type="button" class="header-btn" @click="goRequirementDev">需求开发</button>
+      </div>
       <div class="header-right">
         <div class="product-select-wrapper">
           <ProductSelector v-if="isLoggedIn" />
@@ -63,6 +67,11 @@
     <UserEditDialog v-if="showEditDialog" :user="user" @close="showEditDialog = false" @success="showEditDialog = false" />
     <ChangePasswordDialog v-if="showChangePasswordDialog" @close="showChangePasswordDialog = false" @success="showChangePasswordDialog = false" />
     <SettingsDialog v-if="showSettingsDialog" @close="showSettingsDialog = false" />
+    <KnowledgeQADialog
+      v-if="showKnowledgeQADialog"
+      :tenant-id="selectedVersionId"
+      @close="showKnowledgeQADialog = false"
+    />
   </header>
 </template>
 
@@ -75,11 +84,15 @@ import UserEditDialog from './UserEditDialog.vue'
 import ChangePasswordDialog from './ChangePasswordDialog.vue'
 import ProductSelector from './ProductSelector.vue'
 import SettingsDialog from './SettingsDialog.vue'
+import KnowledgeQADialog from './KnowledgeQADialog.vue'
+import { useProductSelection } from '../composables/useProductSelection.js'
 
 const { user, userDisplayName, isLoggedIn, logout, fetchUser, setToken, avatarUrl, loadAvatar, avatarObjectUrls } = useAuth()
+const { selectedVersionId } = useProductSelection()
 
 const showAuthDialog = ref(false)
 const showSettingsDialog = ref(false)
+const showKnowledgeQADialog = ref(false)
 const showUserMenu = ref(false)
 const showEditDialog = ref(false)
 const showChangePasswordDialog = ref(false)
@@ -106,6 +119,18 @@ function goSettings() {
     return
   }
   showSettingsDialog.value = true
+}
+
+function goKnowledgeQA() {
+  if (!isLoggedIn.value) {
+    showAuthDialog.value = true
+    return
+  }
+  showKnowledgeQADialog.value = true
+}
+
+function goRequirementDev() {
+  console.log('需求开发')
 }
 
 function onUserClick() {
@@ -174,6 +199,18 @@ onUnmounted(() => {
 .header-left {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
+}
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  justify-content: center;
+}
+.header-center .header-btn {
+  min-width: 120px;
+  padding: 0 20px;
 }
 .logo {
   display: flex;
@@ -200,6 +237,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 .product-select-wrapper {
   position: relative;
