@@ -9,7 +9,7 @@
       </div>
       <div class="header-center">
         <button type="button" class="header-btn" :class="{ 'header-btn-active': currentPath === '/qa' }" @click="goKnowledgeQA">知识问答</button>
-        <button type="button" class="header-btn" @click="goRequirementDev">需求开发</button>
+        <button type="button" class="header-btn" @click="goRequirementDev">智能助手</button>
       </div>
       <div class="header-right">
         <div class="product-select-wrapper">
@@ -128,7 +128,7 @@ function goKnowledgeQA() {
 }
 
 function goRequirementDev() {
-  console.log('需求开发')
+  console.log('智能助手')
 }
 
 function onUserClick() {
