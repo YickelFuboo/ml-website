@@ -217,14 +217,34 @@ import { chat, chatStream } from '../api/llmChat.js'
 const { user, userDisplayName, avatarUrl, loadAvatar, avatarObjectUrls } = useAuth()
 
 marked.setOptions({ breaks: true })
-function renderMarkdown(text) {
-  const s = text != null ? String(text) : ''
-  if (!s.trim()) return ''
+
+/** 解析出 <think> 内思考内容与正文，思考部分保留用于展示 */
+function parseThinkAndBody(text) {
+  if (text == null || typeof text !== 'string') return { think: '', body: '' }
+  const raw = String(text)
+  const match = raw.match(/<think>([\s\S]*?)<\/think>/i)
+  if (!match) return { think: '', body: raw.trim() }
+  const think = match[1].trim()
+  const body = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+  return { think, body }
+}
+
+function parseMarkdown(s) {
+  if (!s || !String(s).trim()) return ''
   try {
-    return marked.parse(s)
+    return marked.parse(String(s))
   } catch {
-    return s.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    return String(s).replace(/</g, '&lt;').replace(/>/g, '&gt;')
   }
+}
+
+function renderMarkdown(text) {
+  const { think, body } = parseThinkAndBody(text != null ? String(text) : '')
+  const bodyHtml = body ? parseMarkdown(body) : ''
+  if (!think) return bodyHtml
+  const thinkHtml = '<div class="qa-think-block">' + parseMarkdown(think) + '</div>'
+  const sep = '<div class="qa-think-sep">---------以上为思考过程------------</div><div class="qa-think-spacer"></div>'
+  return thinkHtml + sep + '<div class="qa-think-after">' + bodyHtml + '</div>'
 }
 
 function escapeHtml(s) {
@@ -1021,6 +1041,37 @@ function scrollToBottom() {
 }
 .qa-markdown {
   line-height: 1.4;
+}
+.qa-markdown :deep(.qa-think-block) {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+  margin-bottom: 0.5em;
+}
+.qa-markdown :deep(.qa-think-block p),
+.qa-markdown :deep(.qa-think-block li),
+.qa-markdown :deep(.qa-think-block pre),
+.qa-markdown :deep(.qa-think-block span),
+.qa-markdown :deep(.qa-think-block div),
+.qa-markdown :deep(.qa-think-block code) {
+  font-size: inherit;
+  color: inherit;
+}
+.qa-markdown :deep(.qa-think-sep) {
+  font-size: 12px;
+  color: #9aa0a6;
+  margin: 0.75em 0 0 0;
+  padding: 0;
+  letter-spacing: 0.02em;
+  font-style: italic;
+}
+.qa-markdown :deep(.qa-think-spacer) {
+  display: block;
+  height: 2em;
+}
+.qa-markdown :deep(.qa-think-after) {
+  margin-top: 0;
+  padding-top: 0;
 }
 .qa-markdown :deep(p) {
   margin: 0 0 0.15em !important;
