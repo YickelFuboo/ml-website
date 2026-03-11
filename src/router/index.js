@@ -14,6 +14,12 @@ const routes = [
     meta: { title: '知识问答 - 魔灵' },
   },
   {
+    path: '/agent-assistant',
+    name: 'AgentAssistant',
+    component: () => import('../views/AgentAssistantPage.vue'),
+    meta: { title: '智能助手 - 魔灵' },
+  },
+  {
     path: '/settings',
     redirect: '/',
   },

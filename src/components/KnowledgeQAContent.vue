@@ -64,7 +64,11 @@
         </div>
       </div>
       <div class="qa-chat-body">
-        <div class="qa-chat-messages" ref="messagesRef">
+        <div
+          class="qa-chat-messages"
+          ref="messagesRef"
+          @click="onMessagesClick"
+        >
           <div v-if="!messages.length" class="qa-chat-empty">输入问题开始对话</div>
         <div
           v-for="(msg, idx) in messages"
@@ -79,7 +83,10 @@
           </div>
           <div class="qa-msg-bubble">
             <span class="qa-msg-role">{{ msg.role === 'user' ? '我' : '魔灵' }}</span>
-            <div class="qa-msg-content qa-markdown" v-html="renderMarkdown(msg.content)"></div>
+            <div
+              class="qa-msg-content qa-markdown"
+              v-html="msg.role === 'assistant' && normalizeReference(msg.reference).length ? renderMarkdownWithRefs(msg.content, idx) : renderMarkdown(msg.content)"
+            ></div>
           </div>
         </div>
         <div v-if="sending" class="qa-msg assistant">
@@ -91,6 +98,13 @@
             <div class="qa-msg-content qa-markdown" v-html="renderMarkdown(streamBuffer || '…')"></div>
           </div>
         </div>
+        <div
+          v-if="refTooltip.visible"
+          class="qa-ref-tooltip"
+          :class="{ 'qa-ref-tooltip-below': refTooltip.place === 'below' }"
+          :style="refTooltip.place === 'below' ? { left: refTooltip.x + 'px', top: refTooltip.yBottom + 'px' } : { left: refTooltip.x + 'px', top: refTooltip.y + 'px' }"
+          v-html="refTooltip.html"
+        />
         </div>
         <div class="qa-chat-input-wrap">
         <div class="qa-chat-options">
@@ -213,6 +227,32 @@ function renderMarkdown(text) {
   }
 }
 
+function escapeHtml(s) {
+  if (s == null) return ''
+  const t = String(s)
+  return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+/** 规范 reference：后台可能为 { total, chunks, doc_aggs }，取 chunks 作为引用数组 */
+function normalizeReference(ref) {
+  if (!ref) return []
+  if (Array.isArray(ref)) return ref
+  if (ref && Array.isArray(ref.chunks)) return ref.chunks
+  return []
+}
+
+function renderMarkdownWithRefs(content, msgIdx) {
+  const reference = normalizeReference(messages.value[msgIdx]?.reference)
+  let html = renderMarkdown(content)
+  if (!Array.isArray(reference) || !reference.length) return html
+  html = html.replace(/\[ID:(\d+)\]/g, (_, i) => {
+    const idx = parseInt(i, 10)
+    if (idx < 0 || idx >= reference.length) return `[ID:${i}]`
+    return `<span class="qa-ref-cite" data-msg-idx="${msgIdx}" data-ref-idx="${idx}" role="button" tabindex="0">[${idx + 1}]</span>`
+  })
+  return html
+}
+
 const props = defineProps({
   tenantId: { type: String, default: '' },
 })
@@ -226,7 +266,9 @@ const messages = ref([])
 const inputText = ref('')
 const sending = ref(false)
 const streamBuffer = ref('')
+const streamReference = ref([])
 const enableWebSearch = ref(false)
+const refTooltip = ref({ visible: false, x: 0, y: 0, html: '' })
 const streamMode = ref(true)
 const messagesRef = ref(null)
 const historyList = ref([])
@@ -432,7 +474,13 @@ async function loadHistory(item) {
   try {
     const detail = await getSessionInfo(item.session_id)
     const msgs = detail?.messages ?? []
-    messages.value = msgs.map((m) => ({ role: m.role || 'user', content: m.content ?? '' }))
+    messages.value = msgs.map((m) => ({
+      role: m.role || 'user',
+      content: m.content ?? '',
+      reference: Array.isArray(m.reference) ? m.reference : undefined,
+      prompt: m.prompt,
+      created_at: m.created_at,
+    }))
   } catch {
     messages.value = []
   } finally {
@@ -509,6 +557,7 @@ async function send() {
   inputText.value = ''
   sending.value = true
   streamBuffer.value = ''
+  streamReference.value = []
   scrollToBottom()
 
   const hasKb = selectedKbIds.value.length > 0
@@ -527,17 +576,28 @@ async function send() {
       if (streamMode.value) {
         await kbQueryStream(tenantId.value, body, (answer, data) => {
           if (data?.session_id) currentSessionId.value = data.session_id
+          if (data?.reference) streamReference.value = data.reference
           if (answer !== undefined && (answer || !streamBuffer.value)) {
             streamBuffer.value = answer
           }
           scrollToBottom()
         })
-        messages.value.push({ role: 'assistant', content: streamBuffer.value || '无回复' })
+        messages.value.push({
+          role: 'assistant',
+          content: streamBuffer.value || '无回复',
+          reference: streamReference.value && normalizeReference(streamReference.value).length ? streamReference.value : undefined,
+        })
         loadSessionList()
       } else {
         const res = await kbQuery(tenantId.value, body)
         if (res?.session_id) currentSessionId.value = res.session_id
-        messages.value.push({ role: 'assistant', content: res?.answer ?? '无回复' })
+        messages.value.push({
+          role: 'assistant',
+          content: res?.answer ?? '无回复',
+          reference: res?.reference && normalizeReference(res.reference).length ? res.reference : undefined,
+          prompt: res?.prompt,
+          created_at: res?.created_at,
+        })
         loadSessionList()
       }
     } else {
@@ -572,6 +632,57 @@ async function send() {
     streamBuffer.value = ''
     scrollToBottom()
   }
+}
+
+function getRefFromEvent(e) {
+  const el = e.target?.closest?.('.qa-ref-cite')
+  if (!el) return null
+  const msgIdx = parseInt(el.getAttribute('data-msg-idx'), 10)
+  const refIdx = parseInt(el.getAttribute('data-ref-idx'), 10)
+  const refList = normalizeReference(messages.value[msgIdx]?.reference)
+  if (!refList.length || refIdx < 0 || refIdx >= refList.length) return null
+  return { el, msgIdx, refIdx, ref: refList[refIdx] }
+}
+
+function showRefPanel(r) {
+  const name = r.ref.document_name ?? ''
+  const content = r.ref.content ?? ''
+  const url = r.ref.url ?? ''
+  const nameDisplay = name || '引用'
+  const titleHtml = url
+    ? '<span class="qa-ref-tooltip-link" role="button" tabindex="0" data-url="' + escapeHtml(url) + '">' + escapeHtml(nameDisplay) + '</span>'
+    : '<span class="qa-ref-tooltip-title-plain">' + escapeHtml(nameDisplay) + '</span>'
+  const html = '<div class="qa-ref-tooltip-title">' + titleHtml + '</div><div class="qa-ref-tooltip-body">' + escapeHtml(content) + '</div>'
+  const rect = r.el.getBoundingClientRect()
+  const popupMaxH = Math.min(window.innerHeight * 0.7, 420)
+  const place = rect.top < popupMaxH + 24 ? 'below' : 'above'
+  refTooltip.value = {
+    visible: true,
+    x: rect.left,
+    y: rect.top,
+    yBottom: rect.bottom,
+    html,
+    place,
+  }
+}
+
+function onMessagesClick(e) {
+  const linkEl = e.target?.closest?.('.qa-ref-tooltip-link')
+  if (linkEl) {
+    e.preventDefault()
+    const url = linkEl.getAttribute('data-url')
+    if (url) window.open(url, '_blank', 'noopener,noreferrer')
+    refTooltip.value = { visible: false, x: 0, y: 0, yBottom: 0, html: '', place: 'above' }
+    return
+  }
+  const r = getRefFromEvent(e)
+  if (r) {
+    e.preventDefault()
+    showRefPanel(r)
+    return
+  }
+  if (e.target?.closest?.('.qa-ref-tooltip')) return
+  refTooltip.value = { visible: false, x: 0, y: 0, yBottom: 0, html: '', place: 'above' }
 }
 
 function scrollToBottom() {
@@ -1285,5 +1396,74 @@ function scrollToBottom() {
 .qa-send-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+.qa-msg-content :deep(.qa-ref-cite) {
+  display: inline;
+  color: #1a73e8;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 500;
+}
+.qa-msg-content :deep(.qa-ref-cite:hover) {
+  color: #1557b0;
+  text-decoration: underline;
+}
+.qa-ref-tooltip {
+  position: fixed;
+  z-index: 110;
+  transform: translateY(-100%) translateY(-6px);
+  max-width: 360px;
+  max-height: min(70vh, 420px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #202124;
+  background: #fff;
+  border: 1px solid #e8eaed;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+.qa-ref-tooltip.qa-ref-tooltip-below {
+  transform: translateY(6px);
+}
+.qa-ref-tooltip-title {
+  flex-shrink: 0;
+  font-weight: 600;
+  margin-bottom: 6px;
+  padding-right: 8px;
+}
+.qa-ref-tooltip-title-plain {
+  color: #202124;
+}
+.qa-ref-tooltip-link {
+  color: #1a73e8;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.qa-ref-tooltip-link:hover {
+  color: #1557b0;
+}
+.qa-ref-tooltip-body {
+  flex: 1;
+  min-height: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.qa-ref-tooltip-body::-webkit-scrollbar {
+  width: 6px;
+}
+.qa-ref-tooltip-body::-webkit-scrollbar-thumb {
+  background: #dadce0;
+  border-radius: 3px;
+}
+.qa-ref-tooltip-body::-webkit-scrollbar-thumb:hover {
+  background: #bdc1c6;
 }
 </style>
