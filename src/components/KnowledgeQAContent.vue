@@ -79,7 +79,7 @@
           <div class="qa-msg-avatar">
             <img v-if="msg.role === 'user' && userAvatarUrl" :src="userAvatarUrl" alt="我" class="qa-avatar-img" />
             <span v-else-if="msg.role === 'user'" class="qa-avatar-letter">{{ userAvatarLetter }}</span>
-            <img v-else src="/moling-icon.svg" alt="魔灵" class="qa-moling-icon-img" />
+            <img v-else src="/pando-icon.png" alt="Pando" class="qa-moling-icon-img" />
           </div>
           <div class="qa-msg-bubble">
             <span class="qa-msg-role">{{ msg.role === 'user' ? '我' : '魔灵' }}</span>
@@ -91,7 +91,7 @@
         </div>
         <div v-if="sending" class="qa-msg assistant">
           <div class="qa-msg-avatar">
-            <img src="/moling-icon.svg" alt="魔灵" class="qa-moling-icon-img" />
+            <img src="/pando-icon.png" alt="Pando" class="qa-moling-icon-img" />
           </div>
           <div class="qa-msg-bubble">
             <span class="qa-msg-role">魔灵</span>

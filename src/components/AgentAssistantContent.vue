@@ -21,8 +21,22 @@
         >
           <div class="qa-history-content">
             <span class="qa-history-title">{{ sessionTitle(item) }}</span>
-            <span v-if="sessionTime(item)" class="qa-history-time">{{ sessionTime(item) }}</span>
+            <div class="qa-history-meta">
+              <span v-if="sessionAgentType(item)" class="qa-history-agent-type">{{ sessionAgentType(item) }}</span>
+              <span v-if="sessionTime(item)" class="qa-history-time">{{ sessionTime(item) }}</span>
+            </div>
           </div>
+          <button
+            type="button"
+            class="qa-history-delete-btn"
+            aria-label="删除会话"
+            :disabled="deletingSessionId === item.session_id"
+            @click.stop="onDeleteSession(item)"
+          >
+            <svg class="qa-history-delete-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/>
+            </svg>
+          </button>
         </li>
         <li v-if="!historyList.length && !historyLoading" class="qa-history-empty">暂无历史</li>
         <li v-if="historyLoading" class="qa-history-empty">加载中…</li>
@@ -67,6 +81,7 @@
           <button
             type="button"
             class="qa-model-trigger"
+            :disabled="agentTypesLoading"
             @click="showAgentDropdown = !showAgentDropdown; showModelDropdown = false"
           >
             <span class="qa-model-trigger-text">{{ selectedAgentDisplay }}</span>
@@ -80,6 +95,7 @@
               type="button"
               class="qa-model-option"
               :class="{ active: selectedAgentType === opt.value }"
+              :title="opt.description"
               @click="selectAgentType(opt)"
             >
               {{ opt.label }}
@@ -99,7 +115,7 @@
             <div class="qa-msg-avatar">
               <img v-if="msg.role === 'user' && userAvatarUrl" :src="userAvatarUrl" alt="我" class="qa-avatar-img" />
               <span v-else-if="msg.role === 'user'" class="qa-avatar-letter">{{ userAvatarLetter }}</span>
-              <img v-else src="/moling-icon.svg" alt="魔灵" class="qa-moling-icon-img" />
+              <img v-else src="/pando-icon.png" alt="Pando" class="qa-moling-icon-img" />
             </div>
             <div class="qa-msg-bubble">
               <span class="qa-msg-role">{{ msg.role === 'user' ? '我' : '魔灵' }}</span>
@@ -108,7 +124,7 @@
           </div>
           <div v-if="sending" class="qa-msg assistant">
             <div class="qa-msg-avatar">
-              <img src="/moling-icon.svg" alt="魔灵" class="qa-moling-icon-img" />
+              <img src="/pando-icon.png" alt="Pando" class="qa-moling-icon-img" />
             </div>
             <div class="qa-msg-bubble">
               <span class="qa-msg-role">魔灵</span>
@@ -124,15 +140,15 @@
               placeholder="输入问题…"
               rows="2"
               :readonly="!inputAllowed"
-              @keydown.enter.exact.prevent="inputAllowed && send()"
               @focus="onInputFocus"
+              @keydown.enter.exact.prevent="inputAllowed && send()"
             />
             <div class="qa-input-footer">
               <div class="qa-input-footer-left"></div>
               <button
                 type="button"
                 class="qa-send-btn"
-                :disabled="!inputAllowed || sending || !inputText.trim()"
+                :disabled="!inputAllowed || sending || !inputText.trim() || !selectedAgentType || !selectedModelValue"
                 @click="send"
               >
                 发送
@@ -149,7 +165,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { marked } from 'marked'
 import { useAuth } from '../composables/useAuth.js'
-import { listSessions, getSessionInfo, createSession, getChatModels } from '../api/agentWorker.js'
+import { listSessions, getSessionInfo, getSessionMessages, createSession, deleteSession, getChatModels, getAgentTypes, getUserId } from '../api/agentWorker.js'
 import { useAgentWebSocket } from '../composables/useAgentWebSocket.js'
 
 const { user, userDisplayName, avatarUrl, loadAvatar, avatarObjectUrls } = useAuth()
@@ -172,12 +188,8 @@ function renderMarkdown(text) {
   }
 }
 
-const agentTypeOptions = [
-  { value: 'default', label: '默认' },
-  { value: 'code', label: '代码' },
-  { value: 'research', label: '研究' },
-]
-
+const agentTypeOptions = ref([])
+const agentTypesLoading = ref(false)
 const messages = ref([])
 const inputText = ref('')
 const sending = ref(false)
@@ -189,13 +201,14 @@ const currentSessionId = ref(null)
 const chatModelOptions = ref([])
 const modelsLoading = ref(false)
 const selectedModelValue = ref('')
-const selectedAgentType = ref('default')
+const selectedAgentType = ref('')
 const showModelDropdown = ref(false)
 const showAgentDropdown = ref(false)
 const modelSelectWrapRef = ref(null)
 const agentSelectWrapRef = ref(null)
 const creatingSession = ref(false)
 const createSessionError = ref('')
+const deletingSessionId = ref(null)
 let streamDoneTimer = null
 
 const chatModelGroups = computed(() => {
@@ -220,8 +233,11 @@ const selectedModelDisplay = computed(() => {
 })
 
 const selectedAgentDisplay = computed(() => {
-  const opt = agentTypeOptions.find((o) => o.value === selectedAgentType.value)
-  return opt ? opt.label : selectedAgentType.value
+  const opts = agentTypeOptions.value
+  const opt = opts.find((o) => o.value === selectedAgentType.value)
+  if (opt) return opt.label
+  if (selectedAgentType.value) return selectedAgentType.value
+  return agentTypesLoading.value ? '加载中…' : '请选择 Agent'
 })
 
 const userAvatarUrl = computed(() => {
@@ -312,6 +328,28 @@ async function loadChatModels() {
   }
 }
 
+async function loadAgentTypes() {
+  agentTypesLoading.value = true
+  try {
+    const items = await getAgentTypes()
+    const opts = Array.isArray(items)
+      ? items.map((item) => ({
+          value: item.agent_type ?? '',
+          label: item.name ?? item.agent_type ?? '',
+          description: item.description ?? '',
+        }))
+      : []
+    agentTypeOptions.value = opts
+    if (opts.length && !selectedAgentType.value) {
+      selectedAgentType.value = opts[0].value
+    }
+  } catch {
+    agentTypeOptions.value = []
+  } finally {
+    agentTypesLoading.value = false
+  }
+}
+
 function formatSessionTime(isoOrStr) {
   if (!isoOrStr) return ''
   const d = new Date(isoOrStr)
@@ -332,6 +370,13 @@ function sessionTime(item) {
   return formatSessionTime(item.last_updated ?? item.created_at)
 }
 
+function sessionAgentType(item) {
+  const raw = (item?.agent_type ?? item?.session_type ?? '').trim() || null
+  if (!raw) return null
+  const opt = agentTypeOptions.value.find((o) => o.value === raw)
+  return opt ? opt.label : raw
+}
+
 function sessionSortKey(s) {
   const t = s.last_updated ?? s.created_at ?? ''
   return new Date(t).getTime() || 0
@@ -342,8 +387,7 @@ async function loadSessionList() {
   try {
     const list = await listSessions()
     const items = Array.isArray(list) ? list : []
-    const chatItems = items.filter((s) => (s.session_type || 'chat') === 'chat')
-    historyList.value = [...chatItems].sort((a, b) => sessionSortKey(b) - sessionSortKey(a))
+    historyList.value = [...items].sort((a, b) => sessionSortKey(b) - sessionSortKey(a))
   } catch {
     historyList.value = []
   } finally {
@@ -351,17 +395,44 @@ async function loadSessionList() {
   }
 }
 
+async function onDeleteSession(item) {
+  const sid = item?.session_id
+  if (!sid) return
+  deletingSessionId.value = sid
+  try {
+    await deleteSession(sid)
+    if (currentSessionId.value === sid) {
+      wsDisconnect()
+      currentSessionId.value = null
+      messages.value = []
+    }
+    await loadSessionList()
+  } catch {
+    createSessionError.value = '删除会话失败'
+  } finally {
+    deletingSessionId.value = null
+  }
+}
+
 async function startNewChat() {
   createSessionError.value = ''
   creatingSession.value = true
   wsDisconnect()
+  const agentType = selectedAgentType.value ?? ''
+  const provider = selectedModel.value?.provider ?? ''
+  const model = selectedModel.value?.model ?? null
   try {
-    const res = await createSession({ session_type: 'chat' })
+    const res = await createSession({
+      agent_type: agentType || null,
+      llm_provider: provider || null,
+      llm_model: model,
+    })
     const sid = res?.session_id
     if (sid) {
       currentSessionId.value = sid
       messages.value = []
       await loadSessionList()
+      nextTick(() => connectWs())
     } else {
       currentSessionId.value = null
       messages.value = []
@@ -382,9 +453,22 @@ async function loadHistory(item) {
   wsDisconnect()
   currentSessionId.value = item.session_id
   try {
-    const detail = await getSessionInfo(item.session_id)
-    const msgs = detail?.messages ?? []
-    messages.value = msgs.map((m) => ({ role: m.role || 'user', content: m.content ?? '' }))
+    const [msgs, info] = await Promise.all([
+      getSessionMessages(item.session_id),
+      getSessionInfo(item.session_id),
+    ])
+    messages.value = (msgs || []).map((m) => ({ role: m.role || 'user', content: m.content ?? '' }))
+    if (info?.agent_type != null && String(info.agent_type).trim()) {
+      const t = String(info.agent_type).trim()
+      if (agentTypeOptions.value.some((o) => o.value === t)) selectedAgentType.value = t
+    }
+    if (info?.llm_provider != null || info?.llm_model != null) {
+      const p = (info.llm_provider ?? '').trim()
+      const m = (info.llm_model ?? '').trim()
+      const val = p && m ? `${p}|${m}` : p || m || ''
+      const opt = chatModelOptions.value.find((o) => o.provider === p && o.model === m)
+      selectedModelValue.value = opt ? opt.value : val
+    }
   } catch {
     messages.value = []
   } finally {
@@ -394,28 +478,25 @@ async function loadHistory(item) {
 }
 
 function handleWsMessage(data) {
-  const type = data.message_type ?? data.type
-  const content = data.content ?? ''
-  if (type === 'connect_success' || type === 'CONNECT_SUCCESS') {
-    return
-  }
-  if (type === 'response' || type === 'RESPONSE') {
-    streamBuffer.value = (streamBuffer.value || '') + (content || '')
-    scrollToBottom()
-    if (streamDoneTimer) clearTimeout(streamDoneTimer)
-    streamDoneTimer = setTimeout(() => {
+  const rawType = data.message_type ?? data.type ?? ''
+  const type = String(rawType).toLowerCase()
+  const content = data.content ?? data.text ?? ''
+  if (type === 'connect_success') return
+  if (type === 'response') {
+    // 一条请求可能对应后端多条 RESPONSE，每条立即追加为一条助手消息（与 MoLing-Chat 一致）
+    if (streamDoneTimer) {
+      clearTimeout(streamDoneTimer)
       streamDoneTimer = null
-      if (sending.value && (streamBuffer.value || '').length > 0) {
-        messages.value.push({ role: 'assistant', content: streamBuffer.value || '无回复' })
-        sending.value = false
-        streamBuffer.value = ''
-        loadSessionList()
-        scrollToBottom()
-      }
-    }, 800)
+    }
+    const text = (content || '').trim() || '无回复'
+    messages.value.push({ role: 'assistant', content: text })
+    sending.value = false
+    streamBuffer.value = ''
+    loadSessionList()
+    scrollToBottom()
     return
   }
-  if (type === 'error' || type === 'ERROR') {
+  if (type === 'error') {
     messages.value.push({ role: 'assistant', content: content || '请求出错' })
     sending.value = false
     streamBuffer.value = ''
@@ -423,29 +504,39 @@ function handleWsMessage(data) {
     scrollToBottom()
     return
   }
-  if (type === 'disconnected') {
-    if (sending.value) {
-      messages.value.push({ role: 'assistant', content: streamBuffer.value || '连接已断开' })
-      sending.value = false
+  if (type === 'disconnect' || type === 'disconnected') {
+    if (sending.value && (streamBuffer.value || '').length > 0) {
+      messages.value.push({ role: 'assistant', content: (streamBuffer.value || '').trim() || '连接已断开' })
       streamBuffer.value = ''
-      loadSessionList()
     }
+    sending.value = false
+    loadSessionList()
+    return
+  }
+  if (content !== '' && sending.value) {
+    // 未识别的类型但带 content 时也按单条助手消息展示
+    if (streamDoneTimer) {
+      clearTimeout(streamDoneTimer)
+      streamDoneTimer = null
+    }
+    const text = (content || '').trim() || '无回复'
+    messages.value.push({ role: 'assistant', content: text })
+    sending.value = false
+    streamBuffer.value = ''
+    loadSessionList()
     scrollToBottom()
   }
 }
 
 function connectWs() {
   const sid = currentSessionId.value
-  const agentType = selectedAgentType.value
-  if (!sid || !agentType) return
-  wsConnect(agentType, sid, handleWsMessage)
+  if (!sid) return
+  wsConnect(sid, handleWsMessage)
 }
 
 function onInputFocus() {
   markActivity()
-  if (!wsConnected.value && currentSessionId.value) {
-    connectWs()
-  }
+  if (!wsConnected.value && currentSessionId.value) connectWs()
 }
 
 function onMessagesScroll() {
@@ -455,6 +546,14 @@ function onMessagesScroll() {
 async function send() {
   const text = inputText.value.trim()
   if (!text || sending.value) return
+  if (!selectedAgentType.value) {
+    messages.value.push({ role: 'assistant', content: '请先选择 Agent 类型' })
+    return
+  }
+  if (!selectedModelValue.value) {
+    messages.value.push({ role: 'assistant', content: '请先选择模型' })
+    return
+  }
   markActivity()
   if (!currentSessionId.value) {
     await startNewChat()
@@ -462,15 +561,11 @@ async function send() {
     await nextTick()
   }
   const sid = currentSessionId.value
-  const agentType = selectedAgentType.value
   if (!wsConnected.value) {
     connectWs()
     await new Promise((resolve) => {
       const stop = watch(wsConnected, (v) => {
-        if (v) {
-          stop()
-          resolve()
-        }
+        if (v) { stop(); resolve() }
       })
       setTimeout(resolve, 8000)
     })
@@ -487,7 +582,13 @@ async function send() {
   streamBuffer.value = ''
   scrollToBottom()
 
-  const ok = wsSend(text, selectedModel.value.provider || '', selectedModel.value.model || '')
+  const ok = wsSend({
+    content: text,
+    user_id: getUserId(),
+    agent_type: selectedAgentType.value || undefined,
+    llm_provider: selectedModel.value?.provider ?? undefined,
+    llm_model: selectedModel.value?.model ?? undefined,
+  })
   if (!ok) {
     messages.value.push({ role: 'assistant', content: '发送失败，请检查连接后重试' })
     sending.value = false
@@ -511,9 +612,18 @@ watch(messages, () => {
   nextTick(() => scrollToBottom())
 }, { deep: true })
 
-onMounted(() => {
+onMounted(async () => {
   loadSessionList()
-  loadChatModels()
+  await Promise.all([
+    loadChatModels(),
+    loadAgentTypes(),
+  ])
+  if (chatModelOptions.value.length && !selectedModelValue.value) {
+    selectedModelValue.value = chatModelOptions.value[0].value
+  }
+  if (agentTypeOptions.value.length && !selectedAgentType.value) {
+    selectedAgentType.value = agentTypeOptions.value[0].value
+  }
 })
 
 onUnmounted(() => {
@@ -586,6 +696,9 @@ onUnmounted(() => {
   color: #202124;
   cursor: pointer;
   border-left: 3px solid transparent;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
 }
 .qa-history-item:hover {
   background: #e8eaed;
@@ -594,6 +707,10 @@ onUnmounted(() => {
   background: #e8f0fe;
   color: #1a73e8;
   border-left-color: #1a73e8;
+}
+.qa-history-item .qa-history-content {
+  flex: 1;
+  min-width: 0;
 }
 .qa-history-content {
   display: flex;
@@ -607,14 +724,61 @@ onUnmounted(() => {
   display: block;
   line-height: 1.4;
 }
+.qa-history-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 20px;
+  line-height: 1.2;
+}
+.qa-history-agent-type {
+  font-size: 11px;
+  color: #5f6368;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #e8eaed;
+  flex-shrink: 0;
+  max-width: fit-content;
+}
+.qa-history-item.active .qa-history-agent-type {
+  background: #dadce0;
+  color: #202124;
+}
 .qa-history-time {
   font-size: 11px;
   color: #9aa0a6;
-  align-self: flex-end;
-  line-height: 1.2;
+  flex-shrink: 0;
 }
 .qa-history-item.active .qa-history-time {
   color: #5f6368;
+}
+.qa-history-delete-btn {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #5f6368;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+}
+.qa-history-delete-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.08);
+  color: #d93025;
+  opacity: 1;
+}
+.qa-history-delete-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.qa-history-delete-icon {
+  display: block;
 }
 .qa-history-empty {
   padding: 16px;
@@ -837,15 +1001,18 @@ onUnmounted(() => {
   padding: 10px 14px;
   border-radius: 12px;
   line-height: 1.4;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 .qa-msg.assistant .qa-msg-content {
-  background: #f1f3f4;
+  background: rgba(0, 0, 0, 0.06);
   border-radius: 4px 12px 12px 12px;
 }
 .qa-msg.user .qa-msg-content {
-  background: #e8f0fe;
+  background: rgba(0, 0, 0, 0.05);
   color: #1a1a1a;
   border-radius: 12px 12px 4px 12px;
+  border-color: rgba(0, 0, 0, 0.08);
 }
 .qa-markdown {
   line-height: 1.4;
@@ -899,7 +1066,7 @@ onUnmounted(() => {
 .qa-markdown :deep(pre) {
   margin: 0.15em 0 !important;
   padding: 10px;
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(0, 0, 0, 0.1);
   border-radius: 8px;
   overflow-x: auto;
   font-size: 13px;
@@ -936,6 +1103,7 @@ onUnmounted(() => {
   padding: 12px 16px 8px;
   font-size: 14px;
   border: none;
+  outline: none;
   resize: none;
   min-height: 56px;
   max-height: 120px;

@@ -3,8 +3,8 @@
     <div class="header-inner">
       <div class="header-left">
         <div class="logo">
-          <span class="logo-icon" aria-hidden="true">◇</span>
-          <span class="product-title">魔灵（MOLING）</span>
+          <img src="/pando-icon.png" alt="Pando" class="logo-icon-img" />
+          <span class="product-title">Pando</span>
         </div>
       </div>
       <div class="header-center">
@@ -14,7 +14,7 @@
       <div class="header-right">
         <div class="product-select-wrapper">
           <ProductSelector v-if="isLoggedIn" />
-          <span v-else class="product-placeholder">魔灵（MOLING）</span>
+          <span v-else class="product-placeholder">Pando</span>
         </div>
         <button
           type="button"
@@ -219,16 +219,12 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
 }
-.logo-icon {
+.logo-icon-img {
   width: 32px;
   height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #1a1a1a;
-  color: #fff;
-  font-size: 16px;
+  object-fit: contain;
   border-radius: 50%;
+  display: block;
 }
 .product-title {
   font-size: 18px;

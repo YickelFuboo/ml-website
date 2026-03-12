@@ -4,12 +4,12 @@ import { getAgentWorkerWsBase } from '../api/requestAgentWorker.js'
 const HEARTBEAT_INTERVAL_MS = 30 * 1000
 const IDLE_STOP_PING_MS = 1800 * 1000
 
-function buildWsUrl(agentType, sessionId, wsBase) {
+function buildWsUrl(sessionId, wsBase) {
   const base = wsBase || getAgentWorkerWsBase()
   if (!base) return ''
   const u = base.replace(/^http:\/\//i, 'ws://').replace(/^https:\/\//i, 'wss://')
   const root = u.endsWith('/') ? u.slice(0, -1) : u
-  return `${root}/${encodeURIComponent(agentType)}/${encodeURIComponent(sessionId)}`
+  return `${root}/api/v1/websocket/${encodeURIComponent(sessionId)}`
 }
 
 export function useAgentWebSocket() {
@@ -47,13 +47,13 @@ export function useAgentWebSocket() {
     connected.value = false
   }
 
-  function connect(agentType, sessionId, onMessage) {
-    if (!agentType || !sessionId) return
+  function connect(sessionId, onMessage) {
+    if (!sessionId) return
     disconnect()
     messageHandler = onMessage
-    const url = buildWsUrl(agentType, sessionId)
+    const url = buildWsUrl(sessionId)
     if (!url) {
-      if (onMessage) onMessage({ type: 'error', content: 'WebSocket 地址未配置' })
+      if (onMessage) onMessage({ message_type: 'connect_error', content: 'WebSocket 地址未配置' })
       return
     }
     const socket = new WebSocket(url)
@@ -70,7 +70,8 @@ export function useAgentWebSocket() {
       markActivity()
       try {
         const data = JSON.parse(event.data)
-        if (data.type === 'pong') return
+        const pong = data.type === 'pong' || data.message_type === 'pong'
+        if (pong) return
         if (messageHandler) messageHandler(data)
       } catch {
         if (messageHandler) messageHandler({ type: 'message', content: event.data })
@@ -81,7 +82,7 @@ export function useAgentWebSocket() {
       clearTimers()
       connected.value = false
       ws.value = null
-      if (messageHandler) messageHandler({ type: 'disconnected' })
+      if (messageHandler) messageHandler({ message_type: 'disconnect', content: '' })
     }
 
     socket.onerror = () => {
@@ -120,25 +121,27 @@ export function useAgentWebSocket() {
 
   function startIdleCheck() {}
 
-  function send(content, llmProvider = '', llmModel = '') {
+  /** payload: content (必填), user_id?, agent_type?, llm_provider?, llm_model?，可选不传则用会话已有值 */
+  function send(payload) {
     markActivity()
     const s = ws.value
     if (!s || s.readyState !== WebSocket.OPEN) return false
     try {
-      s.send(JSON.stringify({
-        content,
-        llm_provider: llmProvider || undefined,
-        llm_model: llmModel || undefined,
-      }))
+      const body = { content: payload.content ?? '' }
+      if (payload.user_id != null && payload.user_id !== '') body.user_id = payload.user_id
+      if (payload.agent_type != null && payload.agent_type !== '') body.agent_type = payload.agent_type
+      if (payload.llm_provider != null && payload.llm_provider !== '') body.llm_provider = payload.llm_provider
+      if (payload.llm_model != null && payload.llm_model !== '') body.llm_model = payload.llm_model
+      s.send(JSON.stringify(body))
       return true
     } catch {
       return false
     }
   }
 
-  function ensureConnected(agentType, sessionId, onMessage) {
+  function ensureConnected(sessionId, onMessage) {
     if (connected.value && ws.value && ws.value.readyState === WebSocket.OPEN) return true
-    connect(agentType, sessionId, onMessage)
+    connect(sessionId, onMessage)
     return false
   }
 
