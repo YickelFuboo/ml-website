@@ -5,19 +5,19 @@ const routes = [
     path: '/',
     name: 'Home',
     component: () => import('../views/HomePage.vue'),
-    meta: { title: '魔灵' },
+    meta: { title: 'Pando' },
   },
   {
     path: '/qa',
     name: 'KnowledgeQA',
     component: () => import('../views/KnowledgeQAPage.vue'),
-    meta: { title: '知识问答 - 魔灵' },
+    meta: { title: '知识问答 - Pando' },
   },
   {
     path: '/agent-assistant',
     name: 'AgentAssistant',
     component: () => import('../views/AgentAssistantPage.vue'),
-    meta: { title: '智能助手 - 魔灵' },
+    meta: { title: '智能助手 - Pando' },
   },
   {
     path: '/settings',

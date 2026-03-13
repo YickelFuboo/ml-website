@@ -82,7 +82,8 @@
             <img v-else src="/pando-icon.png" alt="Pando" class="qa-moling-icon-img" />
           </div>
           <div class="qa-msg-bubble">
-            <span class="qa-msg-role">{{ msg.role === 'user' ? '我' : '魔灵' }}</span>
+            <span class="qa-msg-role">{{ msg.role === 'user' ? '我' : 'Pando' }}</span>
+            <span v-if="msg.createTime" class="qa-msg-time">{{ formatMessageTime(msg.createTime) }}</span>
             <div
               class="qa-msg-content qa-markdown"
               v-html="msg.role === 'assistant' && normalizeReference(msg.reference).length ? renderMarkdownWithRefs(msg.content, idx) : renderMarkdown(msg.content)"
@@ -94,7 +95,7 @@
             <img src="/pando-icon.png" alt="Pando" class="qa-moling-icon-img" />
           </div>
           <div class="qa-msg-bubble">
-            <span class="qa-msg-role">魔灵</span>
+            <span class="qa-msg-role">Pando</span>
             <div class="qa-msg-content qa-markdown" v-html="renderMarkdown(streamBuffer || '…')"></div>
           </div>
         </div>
@@ -426,6 +427,20 @@ function formatSessionTime(isoOrStr) {
   return `${y}-${m}-${day} ${h}:${min}`
 }
 
+function formatMessageTime(createTime) {
+  if (createTime == null) return ''
+  const t = typeof createTime === 'number' ? (createTime < 1e12 ? createTime * 1000 : createTime) : createTime
+  const d = new Date(t)
+  if (Number.isNaN(d.getTime())) return ''
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  const sec = String(d.getSeconds()).padStart(2, '0')
+  return `${y}-${m}-${day} ${h}:${min}:${sec}`
+}
+
 function sessionTitle(item) {
   return item.description?.trim() || '未命名对话'
 }
@@ -500,6 +515,7 @@ async function loadHistory(item) {
       reference: Array.isArray(m.reference) ? m.reference : undefined,
       prompt: m.prompt,
       created_at: m.created_at,
+      createTime: m.created_at ?? m.create_time ?? null,
     }))
   } catch {
     messages.value = []
@@ -573,7 +589,7 @@ onMounted(() => {
 async function send() {
   const text = inputText.value.trim()
   if (!text || sending.value) return
-  messages.value.push({ role: 'user', content: text })
+  messages.value.push({ role: 'user', content: text, createTime: Date.now() })
   inputText.value = ''
   sending.value = true
   streamBuffer.value = ''
@@ -606,6 +622,7 @@ async function send() {
           role: 'assistant',
           content: streamBuffer.value || '无回复',
           reference: streamReference.value && normalizeReference(streamReference.value).length ? streamReference.value : undefined,
+          createTime: Date.now(),
         })
         loadSessionList()
       } else {
@@ -617,6 +634,7 @@ async function send() {
           reference: res?.reference && normalizeReference(res.reference).length ? res.reference : undefined,
           prompt: res?.prompt,
           created_at: res?.created_at,
+          createTime: res?.created_at ? new Date(res.created_at).getTime() : Date.now(),
         })
         loadSessionList()
       }
@@ -635,12 +653,12 @@ async function send() {
           streamBuffer.value = (streamBuffer.value || '') + (content || '')
           scrollToBottom()
         })
-        messages.value.push({ role: 'assistant', content: streamBuffer.value || '无回复' })
+        messages.value.push({ role: 'assistant', content: streamBuffer.value || '无回复', createTime: Date.now() })
         loadSessionList()
       } else {
         const res = await chat(body)
         if (res?.session_id) currentSessionId.value = res.session_id
-        messages.value.push({ role: 'assistant', content: res?.content ?? '无回复' })
+        messages.value.push({ role: 'assistant', content: res?.content ?? '无回复', createTime: Date.now() })
         loadSessionList()
       }
     }
@@ -857,7 +875,7 @@ function scrollToBottom() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-width: 220px;
+  min-width: 280px;
   padding: 10px 14px;
   font-size: 14px;
   color: #202124;
@@ -938,6 +956,9 @@ function scrollToBottom() {
   cursor: pointer;
   transition: background 0.15s;
   line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .qa-model-option:hover {
   background: #f1f3f4;
@@ -1014,6 +1035,12 @@ function scrollToBottom() {
 }
 .qa-msg.user .qa-msg-bubble {
   align-items: flex-end;
+}
+.qa-msg-time {
+  font-size: 12px;
+  color: #9aa0a6;
+  margin-bottom: 2px;
+  display: block;
 }
 .qa-msg-role {
   font-size: 12px;
