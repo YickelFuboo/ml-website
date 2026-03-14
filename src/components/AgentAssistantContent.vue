@@ -581,34 +581,49 @@ async function send() {
     await nextTick()
   }
   const sid = currentSessionId.value
-  if (!wsConnected.value) {
+  const payload = {
+    content: text,
+    user_id: getUserId(),
+    agent_type: selectedAgentType.value || undefined,
+    llm_provider: selectedModel.value?.provider ?? undefined,
+    llm_model: selectedModel.value?.model ?? undefined,
+  }
+
+  async function waitConnected(ms) {
+    if (wsConnected.value) return true
     connectWs()
-    await new Promise((resolve) => {
+    return new Promise((resolve) => {
       const stop = watch(wsConnected, (v) => {
-        if (v) { stop(); resolve() }
+        if (v) { stop(); resolve(true) }
       })
-      setTimeout(resolve, 8000)
+      setTimeout(() => { stop(); resolve(false) }, ms)
     })
-    if (!wsConnected.value) {
-      messages.value.push({ role: 'assistant', content: '连接超时，请重试', createTime: Date.now() })
-      sending.value = false
-      streamBuffer.value = ''
-      return
+  }
+
+  if (!wsConnected.value) {
+    const connected = await waitConnected(8000)
+    if (!connected) {
+      const retryConnected = await waitConnected(5000)
+      if (!retryConnected) {
+        messages.value.push({ role: 'assistant', content: '连接超时，请重试', createTime: Date.now() })
+        sending.value = false
+        streamBuffer.value = ''
+        return
+      }
     }
   }
+
   messages.value.push({ role: 'user', content: text, createTime: Date.now() })
   inputText.value = ''
   sending.value = true
   streamBuffer.value = ''
   scrollToBottom()
 
-  const ok = wsSend({
-    content: text,
-    user_id: getUserId(),
-    agent_type: selectedAgentType.value || undefined,
-    llm_provider: selectedModel.value?.provider ?? undefined,
-    llm_model: selectedModel.value?.model ?? undefined,
-  })
+  let ok = wsSend(payload)
+  if (!ok) {
+    const reconnected = await waitConnected(6000)
+    if (reconnected) ok = wsSend(payload)
+  }
   if (!ok) {
     messages.value.push({ role: 'assistant', content: '发送失败，请检查连接后重试', createTime: Date.now() })
     sending.value = false
