@@ -202,6 +202,7 @@ const currentSessionId = ref(null)
 const chatModelOptions = ref([])
 const modelsLoading = ref(false)
 const selectedModelValue = ref('')
+const defaultModelValue = ref(null)
 const selectedAgentType = ref('')
 const showModelDropdown = ref(false)
 const showAgentDropdown = ref(false)
@@ -280,8 +281,10 @@ function selectAgentType(opt) {
 function flattenChatModelsFromBackend(res) {
   if (Array.isArray(res)) return res
   if (!res || typeof res !== 'object') return []
+  const supported = res.supported ?? res
+  if (!supported || typeof supported !== 'object') return []
   const list = []
-  for (const [provider, providerInfo] of Object.entries(res)) {
+  for (const [provider, providerInfo] of Object.entries(supported)) {
     const models = providerInfo?.models ?? providerInfo?.instances ?? {}
     for (const modelName of Object.keys(models)) {
       list.push({
@@ -319,11 +322,19 @@ async function loadChatModels() {
     const flat = flattenChatModelsFromBackend(res)
     const opts = flat.length ? flat : normalizeChatModels(Array.isArray(res) ? res : (res?.models ?? res?.items ?? []))
     chatModelOptions.value = opts
+    const def = res?.default
+    if (def && def.provider != null && def.model != null) {
+      defaultModelValue.value = `${def.provider}|${def.model}`
+    } else {
+      defaultModelValue.value = null
+    }
     if (opts.length && !selectedModelValue.value) {
-      selectedModelValue.value = opts[0].value
+      const defaultVal = defaultModelValue.value
+      selectedModelValue.value = (defaultVal && opts.some((o) => o.value === defaultVal)) ? defaultVal : opts[0].value
     }
   } catch {
     chatModelOptions.value = []
+    defaultModelValue.value = null
   } finally {
     modelsLoading.value = false
   }
@@ -434,6 +445,9 @@ async function startNewChat() {
   creatingSession.value = true
   wsDisconnect()
   const agentType = selectedAgentType.value ?? ''
+  const opts = chatModelOptions.value
+  const useDefault = defaultModelValue.value && opts.some((o) => o.value === defaultModelValue.value)
+  if (useDefault) selectedModelValue.value = defaultModelValue.value
   const provider = selectedModel.value?.provider ?? ''
   const model = selectedModel.value?.model ?? null
   try {
@@ -654,7 +668,9 @@ onMounted(async () => {
     loadAgentTypes(),
   ])
   if (chatModelOptions.value.length && !selectedModelValue.value) {
-    selectedModelValue.value = chatModelOptions.value[0].value
+    const defaultVal = defaultModelValue.value
+    const opts = chatModelOptions.value
+    selectedModelValue.value = (defaultVal && opts.some((o) => o.value === defaultVal)) ? defaultVal : opts[0].value
   }
   if (agentTypeOptions.value.length && !selectedAgentType.value) {
     selectedAgentType.value = agentTypeOptions.value[0].value
